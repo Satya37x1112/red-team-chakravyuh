@@ -131,9 +131,9 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
         ))}
       </div>
       {simActive && (
-        <div className="mb-2 flex items-center gap-1.5 text-2xs text-warn">
+        <div className="mb-2 flex items-center gap-1.5 text-2xs text-muted">
           <span className="h-0.5 w-3 rounded" style={{ background: SIM }} />
-          Simulated load spike — synthetic, peaks ~{sim!.peak}% (real CPU/memory unchanged)
+          Simulated load
         </div>
       )}
       <LineChart
