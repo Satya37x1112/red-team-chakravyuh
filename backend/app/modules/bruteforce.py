@@ -24,6 +24,47 @@ class BruteForceModule(AttackModule):
         base.summary = f"Auth-test profile — {len(logon_events)} recent logon events observed"
         return base
 
+    # Obviously-synthetic weak passwords for a lab wordlist. These are generic
+    # example strings used in security training — never real or leaked creds, and
+    # never used against any service. Display-only.
+    _MOCK_PASSWORDS = [
+        "Password123!", "Welcome1", "Summer2024!", "P@ssw0rd", "changeme",
+        "admin123", "letmein", "Qwerty123", "Company@2024", "Winter2025!",
+    ]
+
+    def _suggest_mock_wordlist(self, telemetry: Telemetry, size_hint: int) -> dict:
+        """Suggest a MOCK (synthetic) wordlist shaped by observed state.
+
+        Grounded in telemetry — OS flavour and the observed account name drive the
+        candidate usernames — but every value is synthetic and for display only.
+        Nothing here is written to a usable file or sent to any service.
+        """
+        os_name = (telemetry.os_name or "").lower()
+        if "windows" in os_name:
+            usernames = ["Administrator", "Guest", "labadmin", "svc-backup"]
+        elif "linux" in os_name:
+            usernames = ["root", "admin", "labuser", "svc"]
+        else:
+            usernames = ["admin", "user", "test"]
+        # Include the observed local account (their own lab host) as realistic context.
+        if telemetry.logged_in_user:
+            account = telemetry.logged_in_user.split("\\")[-1]
+            if account and account not in usernames:
+                usernames.insert(0, account)
+        # More observed logon activity -> a slightly larger suggested wordlist.
+        logon_ids = {4624, 4625}
+        observed = len([e for e in telemetry.windows_events if e.event_id in logon_ids])
+        pw_count = max(3, min(len(self._MOCK_PASSWORDS), (size_hint // 5) + 3 + observed // 5))
+        passwords = self._MOCK_PASSWORDS[:pw_count]
+        preview = [f"{u}:{p}" for u in usernames[:2] for p in passwords[:3]]
+        return {
+            "usernames": usernames,
+            "passwords": passwords,
+            "size": len(usernames) * len(passwords),
+            "preview": preview,
+            "note": "SYNTHETIC mock wordlist — display only, never used against any service.",
+        }
+
     def execute(self, plan: PlanResult, telemetry: Telemetry) -> ExecutionResult:
         """SIMULATION ONLY — model an account-lockout test in memory.
 
@@ -42,6 +83,7 @@ class BruteForceModule(AttackModule):
         simulated_success = 0
         logon_ids = {4624, 4625}
         observed_logons = len([e for e in telemetry.windows_events if e.event_id in logon_ids])
+        wordlist = self._suggest_mock_wordlist(telemetry, rate)
         series = [
             {"minute": i + 1, "attempts": rate,
              "lockouts": (rate * (i + 1)) // lockout_threshold - (rate * i) // lockout_threshold}
@@ -50,7 +92,8 @@ class BruteForceModule(AttackModule):
         return ExecutionResult(
             mode="simulation",
             summary=(f"Simulated {attempts} auth attempts over {window_min} min at {rate}/min; "
-                     f"{simulated_lockouts} lockouts modelled (no credentials sent)."),
+                     f"{simulated_lockouts} lockouts modelled against a {wordlist['size']}-entry "
+                     f"synthetic wordlist (no credentials sent)."),
             metrics={
                 "simulated_attempt_rate": rate,
                 "simulated_window_minutes": window_min,
@@ -58,6 +101,11 @@ class BruteForceModule(AttackModule):
                 "simulated_lockouts": simulated_lockouts,
                 "simulated_successful_logins": simulated_success,
                 "grounded_on_observed_logon_events": observed_logons,
+                "mock_wordlist_size": wordlist["size"],
+                "mock_usernames": wordlist["usernames"],
+                "mock_passwords": wordlist["passwords"],
+                "mock_wordlist_preview": wordlist["preview"],
+                "mock_wordlist_note": wordlist["note"],
             },
             series=series,
         )
