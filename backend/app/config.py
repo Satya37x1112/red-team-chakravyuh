@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # Comma-separated models tried when the primary fails (e.g. out of credits).
     openrouter_fallback_models: str = "openrouter/free"
 
+    # Lab-tool integration placeholders for the (unimplemented) execute() adapters.
+    # All read from .env and default to empty, so the app runs without them set;
+    # the operator fills these in only when wiring their own authorized adapters.
+    hydra_wordlist_dir: str = ""    # BruteForce: directory of operator-provided wordlists
+    locust_file_path: str = ""      # DDoS: path to an operator-authored locustfile
+    caldera_url: str = ""           # RAT: base URL of the operator's MITRE Caldera server
+    caldera_api_key: str = ""       # RAT: Caldera API key (secret; keep in .env only)
+
     @property
     def fallback_models(self) -> list[str]:
         return [m.strip() for m in self.openrouter_fallback_models.split(",") if m.strip()]

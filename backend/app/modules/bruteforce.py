@@ -24,13 +24,27 @@ class BruteForceModule(AttackModule):
         return base
 
     def execute(self, plan: PlanResult):
-        # TODO: real adapter would plug in here.
-        #
-        # An authorized adapter would receive `plan` (parameter
-        # "recommended_attempt_rate") and drive an approved, rate-limited
-        # authentication test against a lab account you control (e.g. via a
-        # tool like THC Hydra against your own lab host), returning lockout
-        # timing and success/failure counts. This repo sends no credentials.
+        """Stub for an authorized, rate-limited account-lockout test adapter.
+
+        Intentionally unimplemented. This repo sends no credentials and runs no
+        tool; the body stays a NotImplementedError. The notes below describe the
+        shape an operator would wire in later for a lab they are authorized to test.
+
+        Intended integration (operator to implement):
+          - Shell out to THC Hydra with ``subprocess.run([...], capture_output=True,
+            text=True, timeout=...)`` — arguments as a list, never ``shell=True``.
+          - Read ``target_ip``, ``service``, and the wordlist paths from ``plan``,
+            which is sourced from config / ``.env`` (see HYDRA_WORDLIST_DIR) — never
+            hardcoded in source and never taken from untrusted user input.
+          - Honour the agent's ``recommended_attempt_rate`` from ``plan`` as Hydra's
+            task/rate limit so the test stays conservative.
+          - Capture ``stdout`` and parse the recovered ``login: password`` pairs and
+            lockout timing into the ExecutionResult. Treat a non-zero exit as a failed
+            run, not a crash.
+
+        The adapter must only ever target a lab account/host the operator owns and
+        has written authorization to test.
+        """
         raise NotImplementedError(
             "Connect an authorized, rate-limited authentication-test lab adapter here."
         )

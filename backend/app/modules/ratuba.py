@@ -30,15 +30,31 @@ class RATUBAModule(AttackModule):
         return self._baseline
 
     def execute(self, plan: PlanResult):
-        # TODO: real adapter would plug in here.
-        #
-        # An authorized adapter would stream real endpoint telemetry from a
-        # consented lab host (process/file/network/Windows events) into the UBA
-        # engine. This repo does NOT deploy any implant, remote-access agent, or
-        # command-and-control channel; telemetry arrives only via the read-only
-        # collector in app/telemetry.
+        """Stub for an authorized adversary-emulation run via MITRE Caldera.
+
+        Intentionally unimplemented. This repo deploys no implant, remote-access
+        agent, or command-and-control channel; the body stays a NotImplementedError.
+        Telemetry for the UBA engine arrives only via the read-only collector in
+        ``app/telemetry``. The notes below describe the shape an operator would wire
+        in later against a Caldera server governing a consented lab group.
+
+        Intended integration (operator to implement):
+          - Use ``httpx.AsyncClient`` to start an operation against a MITRE Caldera
+            server::
+
+                POST {CALDERA_URL}/api/v2/operations
+
+            authenticating with ``CALDERA_API_KEY`` from the environment (see config),
+            with the ``adversary_id`` and target group taken from ``plan``.
+          - Poll ``GET {CALDERA_URL}/api/v2/operations/{id}`` for status and results,
+            then fold the reported ability outcomes into the ExecutionResult.
+          - CALDERA_URL / CALDERA_API_KEY come from config / ``.env``, never hardcoded.
+
+        The adversary profile and lab group must be ones the operator has configured
+        and is authorized to emulate within their own isolated range.
+        """
         raise NotImplementedError(
-            "Connect an authorized, consented endpoint-telemetry feed here (read-only)."
+            "Connect an authorized MITRE Caldera adversary-emulation run here."
         )
 
     def analyze(self, profile: ProfileResult, observation: Observation | None) -> AnalysisReport:

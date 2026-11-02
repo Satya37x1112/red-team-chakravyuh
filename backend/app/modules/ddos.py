@@ -21,13 +21,31 @@ class DDoSModule(AttackModule):
         return base
 
     def execute(self, plan: PlanResult):
-        # TODO: real adapter would plug in here.
-        #
-        # An authorized lab adapter would receive `plan` (parameter
-        # "recommended_sources" + integer value) and launch a CONTROLLED Locust
-        # load test against a lab host you own, then return an ExecutionResult
-        # with the run id and raw Locust stats. Nothing in this repo opens
-        # sockets or generates traffic.
+        """Stub for an authorized, controlled Locust load-test adapter.
+
+        Intentionally unimplemented. Nothing in this repo opens sockets or
+        generates traffic; the body stays a NotImplementedError. The notes below
+        describe the shape an operator would wire in later for a lab host they own.
+
+        Intended integration (operator to implement):
+          - Invoke Locust in headless mode via ``subprocess.run([...],
+            capture_output=True, text=True, timeout=...)`` — arguments as a list,
+            never ``shell=True`` — roughly::
+
+                locust -f <locustfile> --headless -u <user_count> -r <spawn_rate>
+                       --host <target_url> --csv results
+
+          - Take the locustfile path from config / ``.env`` (see LOCUST_FILE_PATH);
+            the locustfile itself is authored separately by the operator and is not
+            part of this repo.
+          - Map the agent's ``recommended_sources`` from ``plan`` to ``--users`` /
+            ``--spawn-rate`` so load stays within the planned bound.
+          - Parse the generated ``results_stats.csv`` (requests, failures, p95
+            latency) into ``simulation_metrics`` on the ExecutionResult.
+
+        The adapter must only ever target a lab host the operator owns and has
+        written authorization to load-test.
+        """
         raise NotImplementedError(
             "Connect an authorized Locust lab adapter here."
         )
