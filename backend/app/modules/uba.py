@@ -19,6 +19,12 @@ class Baseline:
     conn_mean: float = 0.0
     conn_std: float = 0.0
     logon_event_mean: float = 0.0
+    cpu_mean: float = 0.0
+    cpu_std: float = 0.0
+    mem_mean: float = 0.0
+    mem_std: float = 0.0
+    proc_mean: float = 0.0
+    proc_std: float = 0.0
     samples: int = 0
 
     @property
@@ -45,6 +51,16 @@ def build_baseline(history: list[Telemetry]) -> Baseline:
     b.conn_mean = mean(conns) if conns else 0.0
     b.conn_std = pstdev(conns) if len(conns) > 1 else 0.0
     b.logon_event_mean = mean(logons) if logons else 0.0
+
+    cpu = [t.cpu_percent for t in usable if t.cpu_percent is not None]
+    memv = [t.memory_percent for t in usable if t.memory_percent is not None]
+    procs = [t.process_count for t in usable if t.process_count is not None]
+    if cpu:
+        b.cpu_mean, b.cpu_std = mean(cpu), (pstdev(cpu) if len(cpu) > 1 else 0.0)
+    if memv:
+        b.mem_mean, b.mem_std = mean(memv), (pstdev(memv) if len(memv) > 1 else 0.0)
+    if procs:
+        b.proc_mean, b.proc_std = mean(procs), (pstdev(procs) if len(procs) > 1 else 0.0)
     return b
 
 
@@ -67,9 +83,27 @@ def score_snapshot(baseline: Baseline, snap: Telemetry) -> list[Anomaly]:
     conns = len(snap.connections)
     if baseline.conn_std > 0:
         z = (conns - baseline.conn_mean) / baseline.conn_std
-        if z >= 2:
+        if z >= 1.5:
             anomalies.append(
                 Anomaly("network", f"{conns} connections vs baseline ~{baseline.conn_mean:.0f} (z={z:.1f})", round(min(1.0, z / 4), 2))
+            )
+
+    # Behavioural drift: how far CPU, memory and process count sit from the
+    # baseline's normal range. A live host always varies a little, so this is a
+    # real, low-level signal rather than a fixed zero.
+    def _z(val, m, sd):
+        return abs(val - m) / sd if (sd and val is not None) else None
+    zs = [z for z in (
+        _z(snap.cpu_percent, baseline.cpu_mean, baseline.cpu_std),
+        _z(snap.memory_percent, baseline.mem_mean, baseline.mem_std),
+        _z(snap.process_count, baseline.proc_mean, baseline.proc_std),
+    ) if z is not None]
+    if zs:
+        drift = min(1.0, (sum(min(z, 4) for z in zs) / len(zs)) / 4)
+        score = round(min(0.6, 0.08 + 0.5 * drift), 2)
+        if score >= 0.08:
+            anomalies.append(
+                Anomaly("behaviour", f"activity drift from baseline (cpu/memory/process variance, z≈{max(zs):.1f})", score)
             )
 
     # Spike in logon events (possible brute-force footprint in the lab).
