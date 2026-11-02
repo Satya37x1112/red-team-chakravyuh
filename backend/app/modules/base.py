@@ -109,7 +109,7 @@ class AttackModule(ABC):
             parameter=d["parameter"],
             value=d["decision"],
             reasoning=d["reasoning"],
-            source="llm" if d["status"] == "ok" else "llm_unavailable",
+            source={"ok": "llm", "heuristic": "heuristic"}.get(d["status"], "llm_unavailable"),
             raw=d,
         )
 

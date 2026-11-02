@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 import time
 from typing import Any
@@ -151,7 +152,9 @@ def decide(kind: str, telemetry: Telemetry) -> dict[str, Any]:
     ]
     parsed, model, errors = _ask_with_fallback(client, messages)
     if parsed is None:
-        return _unavailable(kind, "OpenRouter call failed: " + " | ".join(errors))
+        # LLM unavailable (no credits / rate limited): don't give up — fall back to a
+        # transparent rule-based recommendation grounded in the real snapshot.
+        return _heuristic_decision(kind, telemetry, note=" | ".join(errors))
 
     decision = _clamp(_coerce_int(parsed.get("decision")), brief["bounds"])
     return {
@@ -218,6 +221,58 @@ def _clamp(value: int | None, bounds: str) -> int | None:
 def _affordable_tokens(message: str) -> int | None:
     m = re.search(r"can only afford (\d+)", message)
     return int(m.group(1)) if m else None
+
+
+_HEURISTIC_REASON = {
+    "ddos": ("Rule-based fallback (LLM unavailable). With CPU at {cpu} and memory at "
+             "{mem}, a load test should use about {value} sources to stay within safe "
+             "lab headroom — fewer when the host is already busy."),
+    "bruteforce": ("Rule-based fallback (LLM unavailable). Given CPU {cpu}, memory {mem} "
+                   "and {logons} recent logon events, a conservative ~{value} attempts/min "
+                   "keeps the authorized lockout test careful and avoids hammering the host."),
+    "ratuba": ("Rule-based fallback (LLM unavailable). With {procs} distinct processes and "
+               "CPU {cpu}, a ~{value}-minute baseline window captures enough endpoint "
+               "behaviour before scoring deviations."),
+}
+
+
+def _heuristic_decision(kind: str, telemetry: Telemetry, note: str = "") -> dict[str, Any]:
+    """A transparent, telemetry-grounded recommendation used when the LLM is down.
+
+    Not fabricated telemetry — it is a rule-based *recommendation* derived from the
+    real snapshot, clearly labelled, with a little run-to-run variation so repeated
+    runs explore the safe band rather than returning an identical number."""
+    brief = MODULE_BRIEFS[kind]
+    nums = re.findall(r"\d+", brief["bounds"])
+    lo, hi = int(nums[0]), int(nums[1])
+    span = hi - lo
+    cpu = telemetry.cpu_percent if telemetry.cpu_percent is not None else 0.0
+    mem = telemetry.memory_percent if telemetry.memory_percent is not None else 0.0
+    load = max(cpu, mem)
+    # Busier host -> more conservative (nearer the low bound).
+    base = hi - (load / 100.0) * span
+    jitter = random.uniform(-0.15, 0.15) * (span or 1)
+    value = int(round(base + jitter))
+    value = max(lo, min(hi, value))
+    logons = len([e for e in telemetry.windows_events if e.event_id in (4624, 4625)])
+    procs = len({p.name for p in telemetry.processes})
+    reasoning = _HEURISTIC_REASON[kind].format(
+        cpu=f"{cpu:.0f}%", mem=f"{mem:.0f}%", logons=logons, procs=procs, value=value
+    )
+    obs = [f"cpu_percent={cpu:.0f}", f"memory_percent={mem:.0f}"]
+    if kind == "bruteforce":
+        obs.append(f"recent_logon_events={logons}")
+    if kind == "ratuba":
+        obs.append(f"distinct_processes={procs}")
+    return {
+        "status": "heuristic",
+        "parameter": brief["parameter"],
+        "decision": value,
+        "reasoning": reasoning + (f" [{note}]" if note else ""),
+        "observations_used": obs,
+        "confidence": "low",
+        "model": "heuristic (local rules)",
+    }
 
 
 def _extract_json(content: str) -> str:

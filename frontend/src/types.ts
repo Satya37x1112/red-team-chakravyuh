@@ -32,7 +32,7 @@ export interface Telemetry {
 }
 
 export interface Decision {
-  status: "ok" | "llm_unavailable";
+  status: "ok" | "heuristic" | "llm_unavailable";
   parameter: string;
   decision: number | null;
   reasoning: string;

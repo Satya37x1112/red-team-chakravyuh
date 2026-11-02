@@ -16,7 +16,8 @@ export function DecisionPanel({
   onRefresh?: () => void;
 }) {
   const meta = KINDS[kind];
-  const unavailable = !decision || decision.status !== "ok" || decision.decision === null;
+  const unavailable = !decision || decision.decision === null;
+  const heuristic = decision?.status === "heuristic";
 
   return (
     <Panel
@@ -40,6 +41,8 @@ export function DecisionPanel({
           {decision && !loading && (
             unavailable ? (
               <Pill tone="warn">llm unavailable</Pill>
+            ) : heuristic ? (
+              <Pill tone="warn">heuristic fallback</Pill>
             ) : (
               <Pill tone={CONFIDENCE[decision.confidence] ?? "muted"}>{decision.confidence} confidence</Pill>
             )
