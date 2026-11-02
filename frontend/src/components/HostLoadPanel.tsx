@@ -83,11 +83,18 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
         const n = points.length;
         const k = Math.min(n, 22);         // spread the ramp over more samples so it rises gently
         const base = points[n - 1]?.cpu ?? 6; // start from the current real CPU, not a jump
+        // stable per-run pseudo-noise so the curve looks organic, not a clean bell
+        const rnd = (x: number) => {
+          const v = Math.sin((sim.start / 1000 + x) * 12.9898) * 43758.5453;
+          return v - Math.floor(v);
+        };
+        const peak = sim.peak + (rnd(0.5) - 0.5) * 5; // slightly different peak each run
         for (let j = 0; j < k; j++) {
           const frac = k === 1 ? 0.5 : j / (k - 1);
           const tri = 1 - Math.abs(frac - 0.5) * 2;          // 0 → 1 → 0
           const eased = tri * tri * tri * (tri * (tri * 6 - 15) + 10); // smootherstep
-          arr[n - k + j] = Math.round(base + (sim.peak - base) * eased);
+          const noise = (rnd(j + 1) - 0.5) * 5 * (0.3 + eased); // more wobble near the peak
+          arr[n - k + j] = Math.max(0, Math.min(100, Math.round(base + (peak - base) * eased + noise)));
         }
         return arr;
       })(),
