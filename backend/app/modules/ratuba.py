@@ -51,7 +51,7 @@ class RATUBAModule(AttackModule):
         return ExecutionResult(
             mode="simulation",
             summary=(f"Simulated {simulated_techniques} emulated techniques over a "
-                     f"{window}-min baseline window (no implant or C2 deployed)."),
+                     f"{window}-min baseline window."),
             metrics={
                 "simulated_baseline_window_minutes": window,
                 "simulated_techniques": simulated_techniques,

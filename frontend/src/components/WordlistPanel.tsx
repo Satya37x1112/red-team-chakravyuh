@@ -29,14 +29,14 @@ export function WordlistPanel() {
     <Panel
       title="Suggested wordlist"
       sub={metrics ? `${metrics.mock_wordlist_size ?? users.length * pws.length} entries · shaped by observed OS and account` : "generated when a session runs"}
-      actions={<Tag>synthetic</Tag>}
+      actions={<Tag>mock</Tag>}
     >
       {!metrics ? (
-        <Empty>Run a brute-force session to generate a synthetic wordlist from the real snapshot.</Empty>
+        <Empty>Run a brute-force session to generate a mock wordlist from the real snapshot.</Empty>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-2xs text-warn">
-            {metrics.mock_wordlist_note ?? "Synthetic — display only, never used against any service."}
+            {metrics.mock_wordlist_note ?? "Mock — display only, never used against any service."}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

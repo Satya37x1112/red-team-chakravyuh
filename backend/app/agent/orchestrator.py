@@ -64,7 +64,7 @@ def _build_assessment(kind: str, plan, execution, observation, risk, anomalies: 
         size = m.get("mock_wordlist_size")
         pws = m.get("mock_passwords") or []
         logons = m.get("grounded_on_observed_logon_events")
-        results.append(f"Modelled {attempts} attempts at {rate}/min against a {size}-entry synthetic wordlist.")
+        results.append(f"Modelled {attempts} attempts at {rate}/min against a {size}-entry mock wordlist.")
         results.append(f"{lockouts} account lockouts would trigger; {logons} real logon events observed for context.")
         weak.append(f"Weak, common passwords are in scope (e.g. {', '.join(pws[:3])}) — these fall to any dictionary run.")
         if (lockouts or 0) == 0:

@@ -62,7 +62,7 @@ class BruteForceModule(AttackModule):
             "passwords": passwords,
             "size": len(usernames) * len(passwords),
             "preview": preview,
-            "note": "SYNTHETIC mock wordlist — display only, never used against any service.",
+            "note": "Mock wordlist — display only, never used against any service.",
         }
 
     def execute(self, plan: PlanResult, telemetry: Telemetry) -> ExecutionResult:
@@ -93,7 +93,7 @@ class BruteForceModule(AttackModule):
             mode="simulation",
             summary=(f"Simulated {attempts} auth attempts over {window_min} min at {rate}/min; "
                      f"{simulated_lockouts} lockouts modelled against a {wordlist['size']}-entry "
-                     f"synthetic wordlist (no credentials sent)."),
+                     f"mock wordlist."),
             metrics={
                 "simulated_attempt_rate": rate,
                 "simulated_window_minutes": window_min,

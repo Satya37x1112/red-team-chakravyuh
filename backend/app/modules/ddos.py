@@ -50,7 +50,7 @@ class DDoSModule(AttackModule):
         return ExecutionResult(
             mode="simulation",
             summary=(f"Simulated {sources} load sources × {req_per_source} requests; modelled "
-                     f"target load peaks at {simulated_peak_load_pct}% (synthetic — no real traffic)."),
+                     f"target load peaks at {simulated_peak_load_pct}%."),
             metrics={
                 "simulated_sources": sources,
                 "simulated_requests": total_requests,
