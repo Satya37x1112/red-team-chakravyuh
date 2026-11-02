@@ -7,6 +7,7 @@ import { Lifecycle } from "../components/Lifecycle";
 import { ModuleResults } from "../components/ModuleResults";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { WordlistPanel } from "../components/WordlistPanel";
+import { RatDetectionsPanel } from "../components/RatDetectionsPanel";
 import { Button, Icon, Panel, Pill, RiskCells, SectionLabel, Tag } from "../components/ui";
 import { useLiveContext } from "../live-context";
 import { KINDS } from "../lib";
@@ -142,6 +143,11 @@ export function Operation({ kind }: { kind: Kind }) {
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
             <TelemetryPanel telemetry={telemetry} />
             <WordlistPanel />
+          </div>
+        ) : kind === "ratuba" ? (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <TelemetryPanel telemetry={telemetry} />
+            <RatDetectionsPanel />
           </div>
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
