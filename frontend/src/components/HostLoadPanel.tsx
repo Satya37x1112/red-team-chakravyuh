@@ -81,12 +81,13 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
         const arr: (number | null)[] = points.map(() => null);
         if (!sim || !simActive) return arr;
         const n = points.length;
-        const k = Math.min(n, 9);          // shape the spike over the most recent samples
-        const low = 12;                    // rises from a low baseline up to the peak and back
+        const k = Math.min(n, 22);         // spread the ramp over more samples so it rises gently
+        const base = points[n - 1]?.cpu ?? 6; // start from the current real CPU, not a jump
         for (let j = 0; j < k; j++) {
           const frac = k === 1 ? 0.5 : j / (k - 1);
-          const tri = 1 - Math.abs(frac - 0.5) * 2; // 0 → 1 → 0
-          arr[n - k + j] = Math.round(low + (sim.peak - low) * tri);
+          const tri = 1 - Math.abs(frac - 0.5) * 2;          // 0 → 1 → 0
+          const eased = tri * tri * tri * (tri * (tri * 6 - 15) + 10); // smootherstep
+          arr[n - k + j] = Math.round(base + (sim.peak - base) * eased);
         }
         return arr;
       })(),
@@ -143,7 +144,7 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
         series={[
           { key: "cpu", label: "CPU", color: CPU, values: cpu, area: true },
           { key: "mem", label: "Memory", color: MEM, values: mem },
-          ...(simActive ? [{ key: "sim", label: "Simulated load", color: SIM, values: simLoad }] : []),
+          ...(simActive ? [{ key: "sim", label: "Simulated load", color: SIM, values: simLoad, smooth: true }] : []),
         ]}
       />
     </Panel>

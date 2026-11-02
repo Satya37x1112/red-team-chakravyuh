@@ -58,6 +58,25 @@ interface LineSeries {
   color: string;
   values: (number | null)[];
   area?: boolean;
+  smooth?: boolean;
+}
+
+// Catmull-Rom -> cubic bezier for a smooth line through the given points.
+function smoothD(pts: { x: number; y: number }[]): string {
+  if (pts.length < 3) return pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("");
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d;
 }
 
 export function LineChart({
@@ -88,21 +107,25 @@ export function LineChart({
     const top = yMax ?? niceCeil(peak * 1.15);
     const y = (v: number) => M.t + ih - (Math.min(v, top) / top) * ih;
     const paths = series.map((s) => {
-      let d = "";
-      let area = "";
-      let runStart: number | null = null;
+      // Split into contiguous non-null runs, then render each (smooth or straight).
+      const runs: { x: number; y: number }[][] = [];
+      let run: { x: number; y: number }[] = [];
       s.values.forEach((v, i) => {
         if (v == null) {
-          if (runStart != null && s.area) area += `L${xs[i - 1]},${M.t + ih}L${xs[runStart]},${M.t + ih}Z`;
-          runStart = null;
-          return;
+          if (run.length) runs.push(run);
+          run = [];
+        } else {
+          run.push({ x: xs[i], y: y(v) });
         }
-        const cmd = runStart == null ? "M" : "L";
-        if (runStart == null) runStart = i;
-        d += `${cmd}${xs[i].toFixed(1)},${y(v).toFixed(1)}`;
-        area += `${cmd}${xs[i].toFixed(1)},${y(v).toFixed(1)}`;
       });
-      if (runStart != null && s.area) area += `L${xs[s.values.length - 1]},${M.t + ih}L${xs[runStart]},${M.t + ih}Z`;
+      if (run.length) runs.push(run);
+      let d = "";
+      let area = "";
+      for (const r of runs) {
+        const seg = s.smooth ? smoothD(r) : r.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("");
+        d += seg;
+        if (s.area) area += `${seg}L${r[r.length - 1].x.toFixed(1)},${M.t + ih}L${r[0].x.toFixed(1)},${M.t + ih}Z`;
+      }
       return { d, area: s.area ? area : "" };
     });
     const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => top * f);
