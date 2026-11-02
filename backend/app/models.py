@@ -137,3 +137,23 @@ class AttackResult(Base):
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     decision: Mapped[dict] = mapped_column(JSON, default=dict)   # the AGENT DECISION blob
     analysis: Mapped[dict] = mapped_column(JSON, default=dict)   # ANALYSIS blob
+
+
+class SimulationMetric(Base):
+    """A single synthetic metric produced by a module's SIMULATION execute().
+
+    These are generated in-memory from the real telemetry snapshot — no network,
+    credential, or process activity is involved. Grounded, not fabricated: each
+    value is derived from observed state (e.g. simulated source count scaled by
+    real CPU/memory load)."""
+
+    __tablename__ = "simulation_metrics"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(ForeignKey("attack_sessions.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    kind: Mapped[AttackKind] = mapped_column(Enum(AttackKind))
+    name: Mapped[str] = mapped_column(String(80))
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit: Mapped[str] = mapped_column(String(30), default="")
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)

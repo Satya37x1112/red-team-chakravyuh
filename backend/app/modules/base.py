@@ -55,6 +55,16 @@ class AdaptedPlan:
 
 
 @dataclass
+class ExecutionResult:
+    """Output of a SIMULATION-only execute(). No network/credential/process I/O
+    ever happens; these are synthetic numbers derived from the real snapshot."""
+    mode: str  # always "simulation"
+    summary: str
+    metrics: dict[str, Any] = field(default_factory=dict)   # aggregate synthetic metrics
+    series: list[dict[str, Any]] = field(default_factory=list)  # per-unit synthetic rows
+
+
+@dataclass
 class AnalysisReport:
     summary: str
     risk_score: float | None
@@ -104,8 +114,14 @@ class AttackModule(ABC):
         )
 
     @abstractmethod
-    def execute(self, plan: PlanResult):
-        """NOT IMPLEMENTED. Wire an authorized lab adapter here, outside this repo."""
+    def execute(self, plan: PlanResult, telemetry: Telemetry) -> "ExecutionResult":
+        """SIMULATION ONLY. Produce synthetic metrics shaped by the real snapshot.
+
+        Implementations must never open a socket, send an HTTP request, attempt
+        authentication, spawn a process, or touch a remote host. They compute
+        in-memory numbers from `telemetry` and return an ExecutionResult that the
+        orchestrator persists to simulation_metrics.
+        """
         raise NotImplementedError
 
     def observe(self, before: Telemetry, after: Telemetry) -> Observation:

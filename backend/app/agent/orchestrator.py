@@ -16,7 +16,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from ..db import SessionLocal
-from ..models import AgentEvent, AttackResult, AttackSession, SessionState
+from ..models import AgentEvent, AttackKind, AttackResult, AttackSession, SessionState, SimulationMetric
 from ..modules.ratuba import RATUBAModule, get_module
 from ..telemetry.service import service
 from ..ws import hub
@@ -129,17 +129,21 @@ class Orchestrator:
         if self._check_kill(session_id):
             return await self._finish_killed(session_id)
 
-        # PREPARE / EXECUTE — gated. No attack code runs here.
+        # PREPARE / EXECUTE — SIMULATION ONLY. No socket, credential, process, or
+        # remote host is ever touched; execute() returns synthetic metrics grounded
+        # in the real snapshot, which we persist to simulation_metrics.
         start_event = "RAT_SESSION_STARTED" if kind == "ratuba" else "SIMULATION_STARTED"
-        await self._emit(session_id, start_event, "PREPARE", "Execution is gated to an authorized lab adapter.")
-        try:
-            module.execute(plan)
-        except NotImplementedError as exc:
-            await self._emit(
-                session_id, "ADAPTATION", "PREPARE",
-                "execute() is a stub — no action performed in this build.",
-                {"detail": str(exc), "execution_performed": False},
-            )
+        await self._emit(
+            session_id, start_event, "PREPARE",
+            "Running in-memory simulation grounded in real telemetry (no real action).",
+        )
+        execution = await asyncio.to_thread(module.execute, plan, before)
+        self._persist_metrics(session_id, kind, execution)
+        await self._emit(
+            session_id, "SIMULATION_STARTED", "PREPARE", execution.summary,
+            {"mode": execution.mode, "metrics": execution.metrics, "units": len(execution.series),
+             "execution_performed": True},
+        )
 
         # OBSERVE — read real telemetry again and compare.
         after = await asyncio.to_thread(service.collect_once)
@@ -179,10 +183,29 @@ class Orchestrator:
         if report.risk_score is None:
             report.risk_score = risk
         await self._emit(session_id, "SIMULATION_COMPLETE", "ANALYZE", report.summary, {"findings": report.findings})
-        self._persist_result(session_id, plan, report)
-        await self._emit(session_id, "SIMULATION_COMPLETE", "RESULT", "Session complete.", {"risk_score": report.risk_score})
+        self._persist_result(session_id, plan, report, execution.metrics)
+        await self._emit(
+            session_id, "SIMULATION_COMPLETE", "RESULT", "Session complete.",
+            {"risk_score": report.risk_score, "simulation_metrics": execution.metrics},
+        )
 
-    def _persist_result(self, session_id: str, plan, report) -> None:
+    def _persist_metrics(self, session_id: str, kind: str, execution) -> None:
+        db = SessionLocal()
+        try:
+            ak = AttackKind(kind)
+            for name, value in execution.metrics.items():
+                db.add(SimulationMetric(
+                    session_id=session_id, kind=ak, name=name,
+                    value=float(value) if isinstance(value, (int, float)) else None,
+                    unit="", meta={} if isinstance(value, (int, float)) else {"raw": value},
+                ))
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+
+    def _persist_result(self, session_id: str, plan, report, metrics: dict | None = None) -> None:
         db = SessionLocal()
         try:
             db.add(
@@ -191,7 +214,7 @@ class Orchestrator:
                     summary=report.summary,
                     risk_score=report.risk_score,
                     decision=plan.raw,
-                    analysis={"findings": report.findings},
+                    analysis={"findings": report.findings, "simulation_metrics": metrics or {}},
                 )
             )
             sess = db.get(AttackSession, session_id)

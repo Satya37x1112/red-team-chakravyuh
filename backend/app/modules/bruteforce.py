@@ -1,12 +1,13 @@
 """Brute-force / authentication-test SIMULATION module.
 
 Real, read-only discover/profile/plan/observe/adapt/analyze. execute() is a
-stub — no credentials are ever sent to any endpoint from this repo.
+bounded in-memory SIMULATION — it models lockout metrics and sends no credentials
+to any endpoint.
 """
 from __future__ import annotations
 
 from ..telemetry.schema import Telemetry
-from .base import AttackModule, PlanResult, ProfileResult
+from .base import AttackModule, ExecutionResult, PlanResult, ProfileResult
 
 
 class BruteForceModule(AttackModule):
@@ -23,30 +24,42 @@ class BruteForceModule(AttackModule):
         base.summary = f"Auth-test profile — {len(logon_events)} recent logon events observed"
         return base
 
-    def execute(self, plan: PlanResult):
-        """Stub for an authorized, rate-limited account-lockout test adapter.
+    def execute(self, plan: PlanResult, telemetry: Telemetry) -> ExecutionResult:
+        """SIMULATION ONLY — model an account-lockout test in memory.
 
-        Intentionally unimplemented. This repo sends no credentials and runs no
-        tool; the body stays a NotImplementedError. The notes below describe the
-        shape an operator would wire in later for a lab they are authorized to test.
-
-        Intended integration (operator to implement):
-          - Shell out to THC Hydra with ``subprocess.run([...], capture_output=True,
-            text=True, timeout=...)`` — arguments as a list, never ``shell=True``.
-          - Read ``target_ip``, ``service``, and the wordlist paths from ``plan``,
-            which is sourced from config / ``.env`` (see HYDRA_WORDLIST_DIR) — never
-            hardcoded in source and never taken from untrusted user input.
-          - Honour the agent's ``recommended_attempt_rate`` from ``plan`` as Hydra's
-            task/rate limit so the test stays conservative.
-          - Capture ``stdout`` and parse the recovered ``login: password`` pairs and
-            lockout timing into the ExecutionResult. Treat a non-zero exit as a failed
-            run, not a crash.
-
-        The adapter must only ever target a lab account/host the operator owns and
-        has written authorization to test.
+        No credentials are sent and no authentication is attempted anywhere. The
+        attempt rate is the agent's recommended value; the simulated attempt count
+        and lockouts are derived arithmetically, grounded in the count of real
+        logon events observed on the host.
         """
-        raise NotImplementedError(
-            "Connect an authorized, rate-limited authentication-test lab adapter here."
+        rate = plan.value if plan.value is not None else 5
+        rate = max(1, min(30, rate))
+        window_min = 5                       # simulated test window
+        lockout_threshold = 5                # simulated lab lockout policy
+        attempts = rate * window_min
+        simulated_lockouts = attempts // lockout_threshold
+        # No real credential ever matches in a simulation — success is always 0.
+        simulated_success = 0
+        logon_ids = {4624, 4625}
+        observed_logons = len([e for e in telemetry.windows_events if e.event_id in logon_ids])
+        series = [
+            {"minute": i + 1, "attempts": rate,
+             "lockouts": (rate * (i + 1)) // lockout_threshold - (rate * i) // lockout_threshold}
+            for i in range(window_min)
+        ]
+        return ExecutionResult(
+            mode="simulation",
+            summary=(f"Simulated {attempts} auth attempts over {window_min} min at {rate}/min; "
+                     f"{simulated_lockouts} lockouts modelled (no credentials sent)."),
+            metrics={
+                "simulated_attempt_rate": rate,
+                "simulated_window_minutes": window_min,
+                "simulated_attempts": attempts,
+                "simulated_lockouts": simulated_lockouts,
+                "simulated_successful_logins": simulated_success,
+                "grounded_on_observed_logon_events": observed_logons,
+            },
+            series=series,
         )
 
     def _analysis_summary(self, profile: ProfileResult) -> str:

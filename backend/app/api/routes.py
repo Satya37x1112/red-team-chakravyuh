@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..agent.decision import decide
 from ..agent.orchestrator import orchestrator
 from ..db import get_db
-from ..models import AgentEvent, AttackKind, AttackResult, AttackSession, Target, TelemetrySnapshot
+from ..models import AgentEvent, AttackKind, AttackResult, AttackSession, SimulationMetric, Target, TelemetrySnapshot
 from ..telemetry.service import service
 from ..ws import hub
 
@@ -222,6 +222,18 @@ def get_session(session_id: str, db: Session = Depends(get_db)) -> dict:
             for e in events
         ],
     }
+
+
+@router.get("/sessions/{session_id}/metrics")
+def session_metrics(session_id: str, db: Session = Depends(get_db)) -> list[dict]:
+    """Synthetic simulation metrics persisted for a session (SIMULATION RESULT)."""
+    rows = db.scalars(
+        select(SimulationMetric).where(SimulationMetric.session_id == session_id).order_by(SimulationMetric.created_at)
+    ).all()
+    return [
+        {"name": r.name, "value": r.value, "unit": r.unit, "kind": r.kind.value, "meta": r.meta}
+        for r in rows
+    ]
 
 
 @router.get("/results/{session_id}")

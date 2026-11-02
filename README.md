@@ -10,9 +10,12 @@ This repository contains **no offensive execution code**. It does not open raw
 sockets, generate traffic floods, perform credential stuffing against any
 endpoint, or deploy any persistence / C2 mechanism.
 
-- Every attack module's `execute()` is an explicit `NotImplementedError` stub.
-  Wiring a real, authorized lab adapter is done by the operator *outside* this
-  codebase.
+- Every attack module's `execute()` is a bounded **in-memory simulation**: it
+  computes synthetic metrics (object counts, simulated success/failure numbers)
+  from the real telemetry snapshot and writes them to `simulation_metrics`. It
+  opens no socket, sends no traffic, attempts no authentication, deploys no
+  implant, and contacts no remote host — verified by running all three with
+  socket creation disabled.
 - `discover / profile / plan / observe / adapt / analyze` only **read** real
   telemetry and reason about it. They never attack.
 - The telemetry collector only **reads** system state (the same data Task

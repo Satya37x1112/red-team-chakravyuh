@@ -1,13 +1,13 @@
 """RAT + UBA SIMULATION module.
 
 The UBA half is fully real: it baselines the lab user's actual endpoint activity
-and scores deviations (see uba.py). The RAT half's execute() is a stub — this
-repo deploys no implant, agent, or C2.
+and scores deviations (see uba.py). The RAT half's execute() is a bounded
+in-memory SIMULATION — this repo deploys no implant, agent, or C2 channel.
 """
 from __future__ import annotations
 
 from ..telemetry.schema import Telemetry
-from .base import AnalysisReport, AttackModule, Observation, PlanResult, ProfileResult
+from .base import AnalysisReport, AttackModule, ExecutionResult, Observation, PlanResult, ProfileResult
 from .uba import Baseline, build_baseline, risk_score, score_snapshot
 
 
@@ -29,32 +29,37 @@ class RATUBAModule(AttackModule):
         self._baseline = build_baseline(history)
         return self._baseline
 
-    def execute(self, plan: PlanResult):
-        """Stub for an authorized adversary-emulation run via MITRE Caldera.
+    def execute(self, plan: PlanResult, telemetry: Telemetry) -> ExecutionResult:
+        """SIMULATION ONLY — model an adversary-emulation run in memory.
 
-        Intentionally unimplemented. This repo deploys no implant, remote-access
-        agent, or command-and-control channel; the body stays a NotImplementedError.
-        Telemetry for the UBA engine arrives only via the read-only collector in
-        ``app/telemetry``. The notes below describe the shape an operator would wire
-        in later against a Caldera server governing a consented lab group.
-
-        Intended integration (operator to implement):
-          - Use ``httpx.AsyncClient`` to start an operation against a MITRE Caldera
-            server::
-
-                POST {CALDERA_URL}/api/v2/operations
-
-            authenticating with ``CALDERA_API_KEY`` from the environment (see config),
-            with the ``adversary_id`` and target group taken from ``plan``.
-          - Poll ``GET {CALDERA_URL}/api/v2/operations/{id}`` for status and results,
-            then fold the reported ability outcomes into the ExecutionResult.
-          - CALDERA_URL / CALDERA_API_KEY come from config / ``.env``, never hardcoded.
-
-        The adversary profile and lab group must be ones the operator has configured
-        and is authorized to emulate within their own isolated range.
+        No implant, agent, or C2 channel is deployed and no host is contacted. The
+        number of simulated emulated techniques is grounded in the variety of real
+        processes observed; the real UBA scoring of the live snapshot happens
+        separately in the orchestrator and is genuine read-only analysis.
         """
-        raise NotImplementedError(
-            "Connect an authorized MITRE Caldera adversary-emulation run here."
+        window = plan.value if plan.value is not None else 30
+        window = max(5, min(120, window))
+        distinct_processes = len({p.name for p in telemetry.processes})
+        event_count = len(telemetry.windows_events)
+        # Synthetic count of emulated techniques, bounded and grounded in real variety.
+        simulated_techniques = max(1, min(10, distinct_processes // 10 or 1))
+        simulated_checkins = window // 5
+        series = [
+            {"technique": f"sim-TTP-{i+1}", "status": "emulated", "artifacts": 1}
+            for i in range(simulated_techniques)
+        ]
+        return ExecutionResult(
+            mode="simulation",
+            summary=(f"Simulated {simulated_techniques} emulated techniques over a "
+                     f"{window}-min baseline window (no implant or C2 deployed)."),
+            metrics={
+                "simulated_baseline_window_minutes": window,
+                "simulated_techniques": simulated_techniques,
+                "simulated_checkins": simulated_checkins,
+                "grounded_on_distinct_processes": distinct_processes,
+                "grounded_on_windows_event_count": event_count,
+            },
+            series=series,
         )
 
     def analyze(self, profile: ProfileResult, observation: Observation | None) -> AnalysisReport:
