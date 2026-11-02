@@ -90,7 +90,11 @@ export function Operation({ kind }: { kind: Kind }) {
     }
   };
 
-  const findings = (analysis?.analysis as { findings?: string[] } | undefined)?.findings ?? [];
+  const analysisBlob = analysis?.analysis as
+    | { findings?: string[]; assessment?: { headline?: string; results?: string[]; weak_points?: string[]; recommendations?: string[] } }
+    | undefined;
+  const findings = analysisBlob?.findings ?? [];
+  const assessment = analysisBlob?.assessment;
   const risk = analysis?.risk_score as number | null | undefined;
 
   return (
@@ -159,6 +163,55 @@ export function Operation({ kind }: { kind: Kind }) {
 
       <section className="flex flex-col gap-3">
         <SectionLabel index="03" label="Analysis" hint={complete ? (killed ? "session killed" : "session complete") : "after a session"} />
+        {assessment && !killed && (
+          <div className="rounded-lg border-2 border-accent/40 bg-accent/5 p-4">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-2xs uppercase tracking-wide text-accent">Agent assessment</span>
+              <span className="h-px flex-1 bg-accent/20" />
+            </div>
+            <p className="mt-2 text-[15px] font-semibold leading-snug text-ink">{assessment.headline}</p>
+
+            {!!assessment.results?.length && (
+              <div className="mt-3">
+                <div className="text-2xs uppercase tracking-wide text-muted">What the run found</div>
+                <ul className="mt-1.5 flex flex-col gap-1">
+                  {assessment.results.map((r, i) => (
+                    <li key={i} className="flex gap-2 text-[13px] text-ink">
+                      <span className="text-accent">›</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!!assessment.weak_points?.length && (
+              <div className="mt-3">
+                <div className="text-2xs uppercase tracking-wide text-crit">Weak points</div>
+                <ul className="mt-1.5 flex flex-col gap-1.5">
+                  {assessment.weak_points.map((w, i) => (
+                    <li key={i} className="flex gap-2 rounded border border-crit/30 bg-crit/5 px-2.5 py-1.5 text-[13px] text-ink">
+                      <Icon name="alert" size={13} className="mt-0.5 shrink-0 text-crit" />
+                      {w}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!!assessment.recommendations?.length && (
+              <div className="mt-3">
+                <div className="text-2xs uppercase tracking-wide text-ok">Recommended hardening</div>
+                <ul className="mt-1.5 flex flex-col gap-1">
+                  {assessment.recommendations.map((r, i) => (
+                    <li key={i} className="flex gap-2 text-[13px] text-muted">
+                      <span className="text-ok">✓</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
         {(analysis || killed) && (
           <Panel title={`Latest run · ${label ?? ""}`}>
             {killed ? (
