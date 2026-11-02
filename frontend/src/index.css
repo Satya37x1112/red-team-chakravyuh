@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --canvas: 246 246 247;
+  --surface: 255 255 255;
+  --raised: 241 241 243;
+  --line: 229 229 233;
+  --line-strong: 206 206 212;
+  --ink: 22 22 25;
+  --muted: 92 92 102;
+  --faint: 138 138 148;
+  --accent: 196 42 61;
+  --accent-hover: 168 30 48;
+  --series-2: 59 95 184;
+  --ok: 22 125 82;
+  --warn: 163 102 10;
+  --crit: 205 32 44;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --canvas: 12 12 13;
+  --surface: 22 22 24;
+  --raised: 30 30 33;
+  --line: 40 40 45;
+  --line-strong: 58 58 64;
+  --ink: 236 236 239;
+  --muted: 156 156 164;
+  --faint: 106 106 114;
+  --accent: 229 72 77;
+  --accent-hover: 240 96 100;
+  --series-2: 110 143 216;
+  --ok: 70 190 132;
+  --warn: 226 170 80;
+  --crit: 255 96 96;
+}
+
+html,
+body {
+  background: rgb(var(--canvas));
+  color: rgb(var(--ink));
+}
+
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.22);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line-strong)) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
