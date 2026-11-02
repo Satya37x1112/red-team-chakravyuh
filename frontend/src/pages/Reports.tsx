@@ -6,6 +6,7 @@ import { useLiveContext } from "../live-context";
 import { KINDS, KIND_LIST, clock, parseTs, stateLabel, stateTone } from "../lib";
 import type { Kind } from "../types";
 import { downloadReport } from "./Dashboard";
+import { openReport } from "./report";
 
 type Result = Record<string, unknown> | null;
 
@@ -33,10 +34,16 @@ export function Reports() {
           <h1 className="text-[22px] font-semibold tracking-tight text-ink">Reports</h1>
           <p className="mt-1 text-xs text-muted">What the agent decided, what it observed, and what it concluded — per scenario and per run.</p>
         </div>
-        <Button onClick={() => downloadReport(telemetry, analytics)} disabled={!analytics.length}>
-          <Icon name="download" size={14} />
-          Export JSON
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={() => openReport(telemetry, recent, results)} disabled={!recent.length}>
+            <Icon name="download" size={14} />
+            Download PDF report
+          </Button>
+          <Button onClick={() => downloadReport(telemetry, analytics)} disabled={!analytics.length}>
+            <Icon name="download" size={14} />
+            Export JSON
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
