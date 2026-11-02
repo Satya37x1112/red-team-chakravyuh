@@ -6,6 +6,7 @@ import { HostLoadPanel } from "../components/HostLoadPanel";
 import { Lifecycle } from "../components/Lifecycle";
 import { ModuleResults } from "../components/ModuleResults";
 import { TelemetryPanel } from "../components/TelemetryPanel";
+import { WordlistPanel } from "../components/WordlistPanel";
 import { Button, Icon, Panel, Pill, RiskCells, SectionLabel, Tag } from "../components/ui";
 import { useLiveContext } from "../live-context";
 import { KINDS } from "../lib";
@@ -133,10 +134,17 @@ export function Operation({ kind }: { kind: Kind }) {
 
       <section className="flex flex-col gap-3">
         <SectionLabel index="01" label="Real lab telemetry" hint={telemetry ? `${telemetry.source} collector` : "waiting"} />
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <HostLoadPanel height={200} />
-          <TelemetryPanel telemetry={telemetry} />
-        </div>
+        {kind === "bruteforce" ? (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+            <TelemetryPanel telemetry={telemetry} />
+            <WordlistPanel />
+          </div>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <HostLoadPanel height={200} />
+            <TelemetryPanel telemetry={telemetry} />
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-3">
