@@ -39,6 +39,9 @@ class DDoSModule(AttackModule):
         serviced_pct = round(headroom, 1)
         serviced = int(round(total_requests * headroom / 100.0))
         dropped = total_requests - serviced
+        # Modelled peak load on the simulated target while "under" the load test.
+        # Synthetic — this is the simulation's own number, not a real reading.
+        simulated_peak_load_pct = min(96, 82 + sources)
         series = [
             {"source": f"sim-src-{i+1}", "requests": req_per_source,
              "serviced": int(round(req_per_source * headroom / 100.0))}
@@ -46,14 +49,15 @@ class DDoSModule(AttackModule):
         ]
         return ExecutionResult(
             mode="simulation",
-            summary=(f"Simulated {sources} load sources × {req_per_source} requests "
-                     f"against observed {serviced_pct}% headroom (no real traffic sent)."),
+            summary=(f"Simulated {sources} load sources × {req_per_source} requests; modelled "
+                     f"target load peaks at {simulated_peak_load_pct}% (synthetic — no real traffic)."),
             metrics={
                 "simulated_sources": sources,
                 "simulated_requests": total_requests,
                 "simulated_serviced": serviced,
                 "simulated_dropped": dropped,
                 "serviced_pct": serviced_pct,
+                "simulated_peak_load_pct": simulated_peak_load_pct,
                 "grounded_on_cpu_percent": cpu,
             },
             series=series,

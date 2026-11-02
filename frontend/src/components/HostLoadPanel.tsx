@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useLiveContext } from "../live-context";
 import { parseTs } from "../lib";
@@ -9,11 +9,34 @@ import { Panel, Segmented } from "./ui";
 type Range = "15" | "60" | "360";
 const CPU = "rgb(var(--accent))";
 const MEM = "rgb(var(--series-2))";
+const SIM = "rgb(var(--warn))";
+const SIM_WINDOW_MS = 45_000;
 
 export function HostLoadPanel({ height = 230, className = "" }: { height?: number; className?: string }) {
-  const { telemetry } = useLiveContext();
+  const { telemetry, events } = useLiveContext();
   const [range, setRange] = useState<Range>("60");
   const [points, setPoints] = useState<HistoryPoint[]>([]);
+  const [sim, setSim] = useState<{ peak: number; start: number } | null>(null);
+  const [, force] = useState(0);
+  const timer = useRef<number | undefined>(undefined);
+
+  // Pick up the most recent DDoS simulation's modelled peak load (synthetic).
+  useEffect(() => {
+    const ev = events.find(
+      (e) => (e.payload?.metrics as { simulated_peak_load_pct?: number } | undefined)?.simulated_peak_load_pct != null
+    );
+    if (!ev) return;
+    const peak = (ev.payload.metrics as { simulated_peak_load_pct: number }).simulated_peak_load_pct;
+    const start = parseTs(ev.ts)?.getTime() ?? Date.now();
+    setSim((prev) => (prev && prev.start >= start ? prev : { peak, start }));
+  }, [events]);
+
+  // While a spike is active, tick so it fades out on its own.
+  useEffect(() => {
+    if (!sim) return;
+    timer.current = window.setInterval(() => force((n) => n + 1), 2000);
+    return () => clearInterval(timer.current);
+  }, [sim]);
 
   useEffect(() => {
     let alive = true;
@@ -48,13 +71,19 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
     });
   }, [telemetry, range]);
 
-  const { times, cpu, mem } = useMemo(
+  const simActive = !!sim && Date.now() - sim.start < SIM_WINDOW_MS;
+  const { times, cpu, mem, simLoad } = useMemo(
     () => ({
       times: points.map((p) => parseTs(p.t) as Date),
       cpu: points.map((p) => p.cpu),
       mem: points.map((p) => p.mem),
+      simLoad: points.map((p) => {
+        if (!sim) return null;
+        const t = parseTs(p.t)?.getTime() ?? 0;
+        return t >= sim.start - 6000 && t <= sim.start + SIM_WINDOW_MS ? sim.peak : null;
+      }),
     }),
-    [points]
+    [points, sim]
   );
   const last = points[points.length - 1];
 
@@ -81,6 +110,7 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
           { label: "Memory", color: MEM, v: last?.mem },
           { label: "Disk", color: null, v: last?.disk },
           { label: "Processes", color: null, v: last?.procs, raw: true },
+          ...(simActive ? [{ label: "Simulated load", color: SIM, v: sim!.peak }] : []),
         ].map((m) => (
           <div key={m.label}>
             <div className="flex items-center gap-1.5 text-2xs text-muted">
@@ -100,6 +130,7 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
         series={[
           { key: "cpu", label: "CPU", color: CPU, values: cpu, area: true },
           { key: "mem", label: "Memory", color: MEM, values: mem },
+          ...(simActive ? [{ key: "sim", label: "Simulated load", color: SIM, values: simLoad }] : []),
         ]}
       />
     </Panel>
