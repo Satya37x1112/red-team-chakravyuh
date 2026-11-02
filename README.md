@@ -59,12 +59,21 @@ internet-facing service. Keep it on the lab network, behind auth if exposed.
 1. **Config** — copy `.env.example` to `.env` on the host and fill
    `OPENROUTER_API_KEY` (or the per-module `OPENROUTER_API_KEY_*`), `DATABASE_URL`,
    and `TELEMETRY_SOURCE`. Never commit `.env`.
-2. **Containers (recommended)** — `cp .env.example .env`, set `POSTGRES_PASSWORD`,
-   then `docker compose up -d --build`. Compose brings up Postgres, the API
-   (`:8077`), and the dashboard.
+2. **Containers (recommended)** — in the repo root:
+
+       cp .env.example .env               # set POSTGRES_PASSWORD
+       cp backend/.env.example backend/.env   # set OPENROUTER_API_KEY*, TELEMETRY_SOURCE
+       docker compose up -d --build
+
+   Compose builds three services: Postgres, the backend, and an nginx container
+   that serves the built dashboard and proxies `/api` + `/ws` to the backend.
+   Open the dashboard at **http://localhost:8080**. The backend is only reachable
+   inside the compose network (expose a port in `docker-compose.yml` if you need
+   it directly).
 3. **Frontend build (bare-metal)** — `cd frontend && npm ci && npm run build`
    produces static assets in `frontend/dist/`; serve them with any static host
-   (nginx/Caddy) and reverse-proxy `/api` and `/ws` to the backend.
+   (nginx/Caddy — see `frontend/nginx.conf`) and reverse-proxy `/api` and `/ws`
+   to the backend.
 4. **Backend (bare-metal)** — run `uvicorn app.main:app --host 0.0.0.0 --port 8077`
    behind a process manager (systemd / a container restart policy). Use Postgres,
    not SQLite, for anything beyond a single-user demo.

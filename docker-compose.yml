@@ -3,33 +3,29 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: chakravyuh
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in chakravyuh/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: chakravyuh
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
 
   backend:
     build: ./backend
     env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg2://chakravyuh:${POSTGRES_PASSWORD}@db:5432/chakravyuh
+      TELEMETRY_SOURCE: ${TELEMETRY_SOURCE:-none}
     depends_on:
       - db
-    ports:
-      - "8077:8077"
+    restart: unless-stopped
 
   frontend:
-    image: node:22-alpine
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: sh -c "npm install && npm run dev -- --host"
+    build: ./frontend
     ports:
-      - "5173:5173"
+      - "8080:80"
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   pgdata:
