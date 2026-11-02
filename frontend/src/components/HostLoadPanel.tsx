@@ -77,13 +77,21 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
       times: points.map((p) => parseTs(p.t) as Date),
       cpu: points.map((p) => p.cpu),
       mem: points.map((p) => p.mem),
-      simLoad: points.map((p) => {
-        if (!sim) return null;
-        const t = parseTs(p.t)?.getTime() ?? 0;
-        return t >= sim.start - 6000 && t <= sim.start + SIM_WINDOW_MS ? sim.peak : null;
-      }),
+      simLoad: ((): (number | null)[] => {
+        const arr: (number | null)[] = points.map(() => null);
+        if (!sim || !simActive) return arr;
+        const n = points.length;
+        const k = Math.min(n, 9);          // shape the spike over the most recent samples
+        const low = 12;                    // rises from a low baseline up to the peak and back
+        for (let j = 0; j < k; j++) {
+          const frac = k === 1 ? 0.5 : j / (k - 1);
+          const tri = 1 - Math.abs(frac - 0.5) * 2; // 0 → 1 → 0
+          arr[n - k + j] = Math.round(low + (sim.peak - low) * tri);
+        }
+        return arr;
+      })(),
     }),
-    [points, sim]
+    [points, sim, simActive]
   );
   const last = points[points.length - 1];
 
@@ -110,7 +118,6 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
           { label: "Memory", color: MEM, v: last?.mem },
           { label: "Disk", color: null, v: last?.disk },
           { label: "Processes", color: null, v: last?.procs, raw: true },
-          ...(simActive ? [{ label: "Simulated load", color: SIM, v: sim!.peak }] : []),
         ].map((m) => (
           <div key={m.label}>
             <div className="flex items-center gap-1.5 text-2xs text-muted">
@@ -123,6 +130,12 @@ export function HostLoadPanel({ height = 230, className = "" }: { height?: numbe
           </div>
         ))}
       </div>
+      {simActive && (
+        <div className="mb-2 flex items-center gap-1.5 text-2xs text-warn">
+          <span className="h-0.5 w-3 rounded" style={{ background: SIM }} />
+          Simulated load spike — synthetic, peaks ~{sim!.peak}% (real CPU/memory unchanged)
+        </div>
+      )}
       <LineChart
         times={times}
         height={height}
