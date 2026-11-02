@@ -20,6 +20,11 @@ class Settings(BaseSettings):
 
     # AI engine — all LLM calls route through OpenRouter's OpenAI-compatible API.
     openrouter_api_key: str = ""
+    # Optional per-module keys (e.g. one free key each) to spread request quota.
+    # Falls back to openrouter_api_key when a module's own key is blank.
+    openrouter_api_key_ddos: str = ""
+    openrouter_api_key_bruteforce: str = ""
+    openrouter_api_key_ratuba: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "anthropic/claude-sonnet-4.5"
     # Comma-separated models tried when the primary fails (e.g. out of credits).
@@ -32,6 +37,15 @@ class Settings(BaseSettings):
     locust_file_path: str = ""      # DDoS: path to an operator-authored locustfile
     caldera_url: str = ""           # RAT: base URL of the operator's MITRE Caldera server
     caldera_api_key: str = ""       # RAT: Caldera API key (secret; keep in .env only)
+
+    def api_key_for(self, kind: str) -> str:
+        """The OpenRouter key for a module, falling back to the shared key."""
+        per_kind = {
+            "ddos": self.openrouter_api_key_ddos,
+            "bruteforce": self.openrouter_api_key_bruteforce,
+            "ratuba": self.openrouter_api_key_ratuba,
+        }.get(kind, "")
+        return per_kind or self.openrouter_api_key
 
     @property
     def fallback_models(self) -> list[str]:

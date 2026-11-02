@@ -121,9 +121,10 @@ def decide(kind: str, telemetry: Telemetry) -> dict[str, Any]:
         return _unavailable(
             kind, f"No real telemetry to reason over ({telemetry.error or 'unavailable'})."
         )
-    if not settings.openrouter_api_key:
+    api_key = settings.api_key_for(kind)
+    if not api_key:
         return _unavailable(
-            kind, "OPENROUTER_API_KEY is not set, so no LLM reasoning was performed."
+            kind, "No OpenRouter API key is set, so no LLM reasoning was performed."
         )
 
     try:
@@ -133,7 +134,7 @@ def decide(kind: str, telemetry: Telemetry) -> dict[str, Any]:
 
     client = OpenAI(
         base_url=settings.openrouter_base_url,
-        api_key=settings.openrouter_api_key,
+        api_key=api_key,
         default_headers={"X-Title": "CHAKRAVYUH Cyber Range"},
         timeout=30,
         max_retries=0,
