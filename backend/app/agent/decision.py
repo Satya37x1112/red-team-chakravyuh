@@ -64,7 +64,7 @@ MODULE_BRIEFS: dict[str, dict[str, str]] = {
 }
 
 SYSTEM_PROMPT = (
-    "You are the reasoning core of CHAKRAVYUH, a defensive cyber-range console for an "
+    "You are the reasoning core of VAJRAPRAHAAR, a defensive cyber-range console for an "
     "isolated, authorized lab. You are given REAL telemetry observed from a lab host. "
     "Reason ONLY over the observed values. You never take actions; you only recommend a "
     "single numeric parameter and explain why from the data. If a value is null, say it "
@@ -136,7 +136,7 @@ def decide(kind: str, telemetry: Telemetry) -> dict[str, Any]:
     client = OpenAI(
         base_url=settings.openrouter_base_url,
         api_key=api_key,
-        default_headers={"X-Title": "CHAKRAVYUH Cyber Range"},
+        default_headers={"X-Title": "VAJRAPRAHAAR Cyber Range"},
         timeout=30,
         max_retries=0,
     )

@@ -24,7 +24,7 @@ export function downloadReport(telemetry: Telemetry | null, sessions: AnalyticsR
   const url = URL.createObjectURL(new Blob([JSON.stringify(body, null, 2)], { type: "application/json" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `chakravyuh-report-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `vajraprahaar-report-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

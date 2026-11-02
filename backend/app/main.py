@@ -1,4 +1,4 @@
-"""CHAKRAVYUH FastAPI application."""
+"""VAJRAPRAHAAR FastAPI application."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
         await service.stop()
 
 
-app = FastAPI(title="CHAKRAVYUH", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="VAJRAPRAHAAR", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +37,7 @@ app.include_router(router)
 
 @app.get("/")
 def root() -> dict:
-    return {"service": "CHAKRAVYUH", "telemetry_source": settings.telemetry_source}
+    return {"service": "VAJRAPRAHAAR", "telemetry_source": settings.telemetry_source}
 
 
 @app.websocket("/ws")

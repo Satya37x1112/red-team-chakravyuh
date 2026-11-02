@@ -5,7 +5,7 @@ export function Range() {
   const { telemetry, connected, halted } = useLiveContext();
   const nodes = [
     {
-      name: "CHAKRAVYUH AGENT",
+      name: "VAJRAPRAHAAR AGENT",
       role: "controller",
       sub: "Orchestrator · decision engine · telemetry poller",
       addr: location.host,

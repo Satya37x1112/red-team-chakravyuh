@@ -1,4 +1,4 @@
-# CHAKRAVYUH backend
+# VAJRAPRAHAAR backend
 
 FastAPI service: real telemetry collector, Postgres models, AI decision engine
 (via OpenRouter), attack-module stubs, and a WebSocket event stream.
