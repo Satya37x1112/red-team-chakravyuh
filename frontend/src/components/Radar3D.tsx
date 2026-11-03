@@ -44,6 +44,26 @@ export function Radar3D({ analytics }: { analytics: AnalyticsRow[] }) {
     ]);
   }, [analytics]);
 
+  const stats = useMemo(
+    () =>
+      SERIES.map(({ kind, name, cssVar }) => {
+        const rows = analytics.filter((r) => r.kind === kind);
+        const done = rows.filter((r) => r.state === "RESULT");
+        const risks = rows.map((r) => r.risk_score).filter((v): v is number => v != null);
+        const durs = done.map((r) => r.duration_s).filter((v): v is number => v != null);
+        const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+        return {
+          name,
+          cssVar,
+          runs: rows.length,
+          completion: rows.length ? Math.round((done.length / rows.length) * 100) : 0,
+          risk: risks.length ? Math.round(avg(risks) * 100) : null,
+          dur: durs.length ? Math.round(avg(durs)) : null,
+        };
+      }),
+    [analytics]
+  );
+
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount || !analytics.length) return;
@@ -184,13 +204,46 @@ export function Radar3D({ analytics }: { analytics: AnalyticsRow[] }) {
   return (
     <Panel title="Scenario profile" sub="3D · drag to rotate · scroll to zoom">
       <div ref={mountRef} className="relative w-full" style={{ height: 360, cursor: "grab" }} />
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        {SERIES.map((s) => (
-          <span key={s.kind} className="flex items-center gap-1.5 text-2xs text-muted">
-            <span className="h-2 w-2 rounded-sm" style={{ background: `rgb(var(${s.cssVar}))` }} />
-            {s.name}
-          </span>
-        ))}
+
+      <p className="mt-2 text-xs leading-relaxed text-muted">
+        Each coloured shape is one attack scenario. The four corners are four qualities — the
+        farther a shape stretches toward a corner, the higher it scores there.
+      </p>
+      <ul className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-2xs text-muted sm:grid-cols-4">
+        <li><b className="text-ink">Volume</b> — how many runs</li>
+        <li><b className="text-ink">Completion</b> — how many finished</li>
+        <li><b className="text-ink">Mean risk</b> — average risk score</li>
+        <li><b className="text-ink">Tempo</b> — how quickly they finish</li>
+      </ul>
+
+      <div className="mt-3 overflow-hidden rounded border border-line">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="bg-raised text-2xs uppercase tracking-wide text-muted">
+              <th className="px-2.5 py-1.5 font-medium">Scenario</th>
+              <th className="px-2.5 py-1.5 text-right font-medium">Runs</th>
+              <th className="px-2.5 py-1.5 text-right font-medium">Completed</th>
+              <th className="px-2.5 py-1.5 text-right font-medium">Avg risk</th>
+              <th className="px-2.5 py-1.5 text-right font-medium">Avg time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.map((st) => (
+              <tr key={st.name} className="border-t border-line">
+                <td className="px-2.5 py-1.5">
+                  <span className="flex items-center gap-1.5 text-ink">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: `rgb(var(${st.cssVar}))` }} />
+                    {st.name}
+                  </span>
+                </td>
+                <td className="px-2.5 py-1.5 text-right font-mono text-ink">{st.runs}</td>
+                <td className="px-2.5 py-1.5 text-right font-mono text-ink">{st.completion}%</td>
+                <td className="px-2.5 py-1.5 text-right font-mono text-ink">{st.risk == null ? "—" : `${st.risk}/100`}</td>
+                <td className="px-2.5 py-1.5 text-right font-mono text-ink">{st.dur == null ? "—" : `${st.dur}s`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </Panel>
   );
