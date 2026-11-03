@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { AnalyticsRow, Kind } from "../types";
-import { Empty, Panel } from "./ui";
+import { Dot, Empty, Panel } from "./ui";
 
 const KIND_META: { kind: Kind; name: string; color: string }[] = [
   { kind: "ddos", name: "DDoS", color: "rgb(var(--accent))" },
@@ -19,7 +19,8 @@ const Legend = () => (
   </div>
 );
 
-/** Radar of each scenario's operational profile: volume, completion, risk, speed. */
+/** Pseudo-3D radar: an elliptical (tilted-disc) grid with extruded, gradient-filled
+ *  polygons per scenario — volume, completion, risk, tempo. */
 export function ScenarioRadar({ analytics }: { analytics: AnalyticsRow[] }) {
   const axes = ["Volume", "Completion", "Mean risk", "Tempo"];
   const data = useMemo(() => {
@@ -41,15 +42,17 @@ export function ScenarioRadar({ analytics }: { analytics: AnalyticsRow[] }) {
       b.runs / maxRuns,
       b.completion,
       b.risk,
-      b.dur ? 1 - b.dur / maxDur + 0.15 : 0, // faster = higher "tempo"
+      b.dur ? 1 - b.dur / maxDur + 0.15 : 0,
     ]);
   }, [analytics]);
 
-  const cx = 120, cy = 108, R = 78, N = axes.length;
-  const pt = (i: number, r: number) => {
+  const cx = 150, cy = 118, R = 92, SQUASH = 0.62, N = axes.length, DEPTH = 10;
+  const pt = (i: number, r: number, dy = 0) => {
     const a = -Math.PI / 2 + (i / N) * 2 * Math.PI;
-    return [cx + Math.cos(a) * R * r, cy + Math.sin(a) * R * r];
+    return [cx + Math.cos(a) * R * r, cy + Math.sin(a) * R * SQUASH * r + dy];
   };
+  const poly = (vals: number[], dy = 0) =>
+    vals.map((v, i) => pt(i, Math.max(0.02, v), dy).map((n) => n.toFixed(1)).join(",")).join(" ");
 
   if (!analytics.length)
     return (
@@ -60,33 +63,38 @@ export function ScenarioRadar({ analytics }: { analytics: AnalyticsRow[] }) {
 
   return (
     <Panel title="Scenario profile" sub="Volume · completion · risk · tempo">
-      <svg viewBox="0 0 240 220" className="w-full">
+      <svg viewBox="0 0 300 230" className="w-full">
+        <defs>
+          {KIND_META.map((k, i) => (
+            <linearGradient key={k.kind} id={`rad-${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={k.color} stopOpacity="0.38" />
+              <stop offset="100%" stopColor={k.color} stopOpacity="0.08" />
+            </linearGradient>
+          ))}
+          <filter id="rad-shadow" x="-20%" y="-20%" width="140%" height="160%">
+            <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.18" />
+          </filter>
+        </defs>
+        {/* tilted elliptical grid rings */}
         {[0.25, 0.5, 0.75, 1].map((r) => (
-          <polygon
-            key={r}
-            points={axes.map((_, i) => pt(i, r).map((n) => n.toFixed(1)).join(",")).join(" ")}
-            className="fill-none stroke-line"
-          />
+          <ellipse key={r} cx={cx} cy={cy} rx={R * r} ry={R * SQUASH * r} className="fill-none stroke-line" />
         ))}
         {axes.map((ax, i) => {
           const [x, y] = pt(i, 1);
-          const [lx, ly] = pt(i, 1.18);
+          const [lx, ly] = pt(i, 1.22);
           return (
             <g key={ax}>
               <line x1={cx} y1={cy} x2={x} y2={y} className="stroke-line" />
-              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-muted text-[8px]">{ax}</text>
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className="fill-muted text-[10px]">{ax}</text>
             </g>
           );
         })}
+        {/* extruded depth + top face per scenario */}
         {data.map((vals, k) => (
-          <polygon
-            key={k}
-            points={vals.map((v, i) => pt(i, Math.max(0.02, v)).map((n) => n.toFixed(1)).join(",")).join(" ")}
-            fill={KIND_META[k].color}
-            fillOpacity={0.12}
-            stroke={KIND_META[k].color}
-            strokeWidth={1.5}
-          />
+          <g key={k} filter="url(#rad-shadow)">
+            <polygon points={poly(vals, DEPTH)} fill={KIND_META[k].color} fillOpacity={0.14} />
+            <polygon points={poly(vals)} fill={`url(#rad-${k})`} stroke={KIND_META[k].color} strokeWidth={1.6} strokeLinejoin="round" />
+          </g>
         ))}
       </svg>
       <Legend />
@@ -94,46 +102,65 @@ export function ScenarioRadar({ analytics }: { analytics: AnalyticsRow[] }) {
   );
 }
 
-/** Scatter of completed sessions: risk vs. duration, coloured by scenario. */
-export function RiskScatter({ analytics }: { analytics: AnalyticsRow[] }) {
-  const pts = useMemo(
+/** Session outcomes per scenario: completed / killed / failed / running. */
+export function OutcomesByScenario({ analytics }: { analytics: AnalyticsRow[] }) {
+  const seg = [
+    { key: "RESULT", label: "Completed", color: "rgb(var(--ok))", tone: "ok" as const },
+    { key: "running", label: "Running", color: "rgb(var(--warn))", tone: "warn" as const },
+    { key: "KILLED", label: "Killed", color: "rgb(var(--crit))", tone: "crit" as const },
+    { key: "FAILED", label: "Failed", color: "rgb(var(--muted))", tone: "muted" as const },
+  ];
+  const rows = useMemo(
     () =>
-      analytics
-        .filter((r) => r.duration_s != null && r.risk_score != null)
-        .map((r) => ({ x: r.duration_s as number, y: (r.risk_score as number) * 100, kind: r.kind })),
+      KIND_META.map(({ kind, name }) => {
+        const rs = analytics.filter((r) => r.kind === kind);
+        const done = rs.filter((r) => r.state === "RESULT").length;
+        const killed = rs.filter((r) => r.state === "KILLED").length;
+        const failed = rs.filter((r) => r.state === "FAILED").length;
+        const running = rs.length - done - killed - failed;
+        return { name, total: rs.length, counts: { RESULT: done, running, KILLED: killed, FAILED: failed } as Record<string, number> };
+      }),
     [analytics]
   );
-  const W = 360, H = 200, M = { l: 32, r: 12, t: 10, b: 28 };
-  const iw = W - M.l - M.r, ih = H - M.t - M.b;
-  const maxX = Math.max(10, ...pts.map((p) => p.x));
-  const x = (v: number) => M.l + (v / maxX) * iw;
-  const y = (v: number) => M.t + ih - (Math.min(v, 100) / 100) * ih;
-  const color = (k: Kind) => KIND_META.find((m) => m.kind === k)!.color;
+  const max = Math.max(1, ...rows.map((r) => r.total));
 
-  if (!pts.length)
+  if (!analytics.length)
     return (
-      <Panel title="Risk vs. duration" sub="Each dot is a completed session">
-        <Empty>No completed sessions with a risk score yet.</Empty>
+      <Panel title="Session outcomes" sub="How each scenario's runs ended">
+        <Empty>No sessions yet.</Empty>
       </Panel>
     );
 
   return (
-    <Panel title="Risk vs. duration" sub="Each dot is a completed session">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-        {[0, 25, 50, 75, 100].map((t) => (
-          <g key={t}>
-            <line x1={M.l} y1={y(t)} x2={W - M.r} y2={y(t)} className="stroke-line" />
-            <text x={M.l - 6} y={y(t)} textAnchor="end" dominantBaseline="middle" className="fill-faint text-[9px]">{t}</text>
-          </g>
+    <Panel title="Session outcomes" sub="How each scenario's runs ended">
+      <div className="flex flex-col gap-4 pt-1">
+        {rows.map((r) => (
+          <div key={r.name}>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs text-ink">{r.name}</span>
+              <span className="font-mono text-2xs text-muted">{r.total} run{r.total === 1 ? "" : "s"}</span>
+            </div>
+            <div className="flex h-5 overflow-hidden rounded bg-line" style={{ width: `${Math.max(8, (r.total / max) * 100)}%` }}>
+              {seg.map((s) =>
+                r.counts[s.key] ? (
+                  <div
+                    key={s.key}
+                    title={`${s.label}: ${r.counts[s.key]}`}
+                    style={{ width: `${(r.counts[s.key] / r.total) * 100}%`, background: s.color }}
+                  />
+                ) : null
+              )}
+            </div>
+          </div>
         ))}
-        <text x={M.l} y={H - 6} className="fill-faint text-[9px]">0s</text>
-        <text x={W - M.r} y={H - 6} textAnchor="end" className="fill-faint text-[9px]">{Math.round(maxX)}s</text>
-        <text x={10} y={M.t + 4} className="fill-muted text-[9px]">risk</text>
-        {pts.map((p, i) => (
-          <circle key={i} cx={x(p.x).toFixed(1)} cy={y(p.y).toFixed(1)} r={4} fill={color(p.kind)} fillOpacity={0.75} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-3">
+        {seg.map((s) => (
+          <span key={s.key} className="flex items-center gap-1.5 text-2xs text-muted">
+            <Dot tone={s.tone} /> {s.label}
+          </span>
         ))}
-      </svg>
-      <Legend />
+      </div>
     </Panel>
   );
 }
