@@ -5,6 +5,7 @@ import { EventStream } from "../components/EventStream";
 import { HistoryFilter, HistoryTable } from "../components/HistoryTable";
 import { HostLoadPanel } from "../components/HostLoadPanel";
 import { ModuleCard } from "../components/ModuleResults";
+import { ScenarioRadar, RiskScatter } from "../components/analytics-charts";
 import { Button, Dot, Icon, Panel, Stat } from "../components/ui";
 import { useLiveContext } from "../live-context";
 import { KIND_LIST, parseTs, uptime } from "../lib";
@@ -140,6 +141,14 @@ export function Dashboard() {
           {KIND_LIST.map((k) => (
             <ModuleCard key={k.kind} kind={k.kind} />
           ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-[13px] font-semibold text-ink">Operational analytics</h2>
+        <div className="grid gap-5 md:grid-cols-2">
+          <ScenarioRadar analytics={analytics} />
+          <RiskScatter analytics={analytics} />
         </div>
       </section>
 
