@@ -5,7 +5,8 @@ import { EventStream } from "../components/EventStream";
 import { HistoryFilter, HistoryTable } from "../components/HistoryTable";
 import { HostLoadPanel } from "../components/HostLoadPanel";
 import { ModuleCard } from "../components/ModuleResults";
-import { ScenarioRadar, OutcomesByScenario } from "../components/analytics-charts";
+import { OutcomesByScenario } from "../components/analytics-charts";
+import { Radar3D } from "../components/Radar3D";
 import { AttackSurfacePanel } from "../components/AttackSurfacePanel";
 import { Button, Dot, Icon, Panel, Stat } from "../components/ui";
 import { useLiveContext } from "../live-context";
@@ -148,7 +149,7 @@ export function Dashboard() {
       <section>
         <h2 className="mb-3 text-[13px] font-semibold text-ink">Operational analytics</h2>
         <div className="grid gap-5 md:grid-cols-2">
-          <ScenarioRadar analytics={analytics} />
+          <Radar3D analytics={analytics} />
           <OutcomesByScenario analytics={analytics} />
         </div>
         <div className="mt-5">
