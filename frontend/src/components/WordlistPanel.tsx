@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLiveContext } from "../live-context";
-import { Empty, Panel, Tag } from "./ui";
+import { Button, Empty, Icon, Panel, Tag } from "./ui";
 
 type Metrics = {
   mock_usernames?: string[];
@@ -25,11 +25,31 @@ export function WordlistPanel() {
   const pws = metrics?.mock_passwords ?? [];
   const preview = metrics?.mock_wordlist_preview ?? [];
 
+  const downloadTxt = () => {
+    const lines = users.flatMap((u) => pws.map((p) => `${u}:${p}`));
+    const body = [`# VAJRAPRAHAAR mock wordlist — ${lines.length} candidate pairs`, "", ...lines].join("\n");
+    const url = URL.createObjectURL(new Blob([body], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vajraprahaar-wordlist-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Panel
       title="Suggested wordlist"
       sub={metrics ? `${metrics.mock_wordlist_size ?? users.length * pws.length} entries · shaped by observed OS and account` : "generated when a session runs"}
-      actions={<Tag>mock</Tag>}
+      actions={
+        <span className="flex items-center gap-2">
+          {metrics && (
+            <Button onClick={downloadTxt} title="Download the wordlist as a .txt file">
+              <Icon name="download" size={13} /> .txt
+            </Button>
+          )}
+          <Tag>mock</Tag>
+        </span>
+      }
     >
       {!metrics ? (
         <Empty>Run a brute-force session to generate a mock wordlist from the real snapshot.</Empty>
