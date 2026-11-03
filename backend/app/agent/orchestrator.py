@@ -44,6 +44,15 @@ def _build_assessment(kind: str, plan, execution, observation, risk, anomalies: 
         loss = round(100 - (serviced or 0), 1)
         results.append(f"Modelled {sources} load sources; simulated target load peaked at {peak}%.")
         results.append(f"{serviced}% of simulated requests serviced, {dropped} dropped ({loss}% loss).")
+        rps = m.get("requests_per_second")
+        ent = m.get("shannon_entropy")
+        entn = m.get("entropy_normalized")
+        if rps is not None:
+            results.append(f"Traffic rate ~{rps} req/s; Shannon entropy of the source distribution "
+                           f"H={ent} bits (normalised {entn}).")
+            if entn is not None and entn < 0.8:
+                weak.append(f"Source-distribution entropy is low (normalised {entn}) — traffic concentrates "
+                            f"on a few sources, a detectable volumetric-flood signature.")
         if (serviced or 100) < 85:
             weak.append(f"Only {serviced}% of load absorbed — limited headroom, service degrades under a modest source count.")
         if (peak or 0) >= 85:
@@ -55,6 +64,7 @@ def _build_assessment(kind: str, plan, execution, observation, risk, anomalies: 
             "Put a rate limiter / reverse proxy (nginx, HAProxy) in front and cap per-source connections.",
             "Add autoscaling or a CDN/WAF so a small source count can't saturate the origin.",
             "Alert when request-drop rate crosses a threshold.",
+            "Monitor Shannon entropy of the source/IP distribution to flag volumetric floods early.",
         ]
 
     elif kind == "bruteforce":

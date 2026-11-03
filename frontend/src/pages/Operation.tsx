@@ -8,6 +8,7 @@ import { ModuleResults } from "../components/ModuleResults";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { WordlistPanel } from "../components/WordlistPanel";
 import { RatDetectionsPanel } from "../components/RatDetectionsPanel";
+import { DdosMetricsPanel } from "../components/DdosMetricsPanel";
 import { Button, Icon, Panel, Pill, RiskCells, SectionLabel, Tag } from "../components/ui";
 import { useLiveContext } from "../live-context";
 import { KINDS } from "../lib";
@@ -169,6 +170,7 @@ export function Operation({ kind }: { kind: Kind }) {
 
       <section className="flex flex-col gap-3">
         <SectionLabel index="03" label="Analysis" hint={complete ? (killed ? "session killed" : "session complete") : "after a session"} />
+        {kind === "ddos" && <DdosMetricsPanel />}
         {assessment && !killed && (
           <div className="rounded-lg border-2 border-accent/40 bg-accent/5 p-4">
             <div className="flex items-center gap-2">
