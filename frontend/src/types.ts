@@ -11,6 +11,13 @@ export interface NetworkInterface {
   is_up: boolean | null;
 }
 
+export interface NetworkConnection {
+  laddr: string | null;
+  raddr: string | null;
+  status: string | null;
+  pid: number | null;
+}
+
 export interface Telemetry {
   collected_at: string;
   source: string;
@@ -27,7 +34,7 @@ export interface Telemetry {
   processes: ProcessInfo[];
   process_count: number | null;
   interfaces: NetworkInterface[];
-  connections: unknown[];
+  connections: NetworkConnection[];
   windows_events: unknown[];
 }
 

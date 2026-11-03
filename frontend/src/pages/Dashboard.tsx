@@ -6,6 +6,7 @@ import { HistoryFilter, HistoryTable } from "../components/HistoryTable";
 import { HostLoadPanel } from "../components/HostLoadPanel";
 import { ModuleCard } from "../components/ModuleResults";
 import { ScenarioRadar, RiskScatter } from "../components/analytics-charts";
+import { AttackSurfacePanel } from "../components/AttackSurfacePanel";
 import { Button, Dot, Icon, Panel, Stat } from "../components/ui";
 import { useLiveContext } from "../live-context";
 import { KIND_LIST, parseTs, uptime } from "../lib";
@@ -149,6 +150,9 @@ export function Dashboard() {
         <div className="grid gap-5 md:grid-cols-2">
           <ScenarioRadar analytics={analytics} />
           <RiskScatter analytics={analytics} />
+        </div>
+        <div className="mt-5">
+          <AttackSurfacePanel />
         </div>
       </section>
 
