@@ -28,8 +28,8 @@ class BruteForceModule(AttackModule):
     # example strings used in security training — never real or leaked creds, and
     # never used against any service. Display-only.
     _MOCK_PASSWORDS = [
-        "Password123!", "Welcome1", "Summer2024!", "P@ssw0rd", "changeme",
-        "admin123", "letmein", "Qwerty123", "Company@2024", "Winter2025!",
+        "Summer2026!", "Winter2026!", "Password123!", "Spring2026!", "Autumn2026!",
+        "Welcome1", "P@ssw0rd", "changeme", "Qwerty123", "Company@2026",
     ]
 
     def _suggest_mock_wordlist(self, telemetry: Telemetry, size_hint: int) -> dict:
