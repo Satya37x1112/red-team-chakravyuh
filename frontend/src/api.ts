@@ -9,9 +9,11 @@ import type {
   HistoryPoint,
   IntegrationStatus,
   Kind,
+  PentestReport,
   SessionBrief,
   SessionDetail,
   Telemetry,
+  VervetEmulateResult,
 } from "./types";
 
 async function json<T>(res: Response): Promise<T> {
@@ -58,10 +60,13 @@ export const api = {
   calderaAnalyze: (body: { sample?: string; reports?: unknown[]; ai?: boolean }) =>
     post("/api/integrations/caldera/analyze", body).then(json<CalderaAnalysis>),
   vervetDescribe: () => fetch("/api/integrations/vervet/describe").then(json<Record<string, unknown>>),
+  vervetEmulate: (body: { target: string; technique?: string }) =>
+    post("/api/integrations/vervet/emulate", body).then(json<VervetEmulateResult>),
   locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
     post("/api/integrations/locust/run", body).then(json<Record<string, unknown>>),
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
+  report: () => fetch("/api/central/report").then(json<PentestReport>),
   artifacts: (integration?: string) =>
     fetch(`/api/integrations/artifacts${integration ? `?integration=${integration}` : ""}`).then(json<ArtifactRow[]>),
   artifact: (id: string) => fetch(`/api/integrations/artifacts/${id}`).then(json<ArtifactDetail>),

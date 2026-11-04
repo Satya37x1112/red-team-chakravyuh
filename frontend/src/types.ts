@@ -171,6 +171,58 @@ export interface CentralSummary {
   artifacts: { total: number; by_integration: Record<string, number>; recent: ArtifactRow[] };
 }
 
+export interface VervetFinding {
+  handle: string;
+  kind: string | null;
+  detail: string | null;
+  target: string | null;
+}
+
+export interface VervetEmulateResult {
+  target: string;
+  technique: string;
+  authority: string;
+  engagement_id: string;
+  receipt: Record<string, unknown>;
+  findings: VervetFinding[];
+  coverage: Record<string, unknown> | null;
+  artifact_id?: string;
+}
+
+export interface ReportFinding {
+  severity: string;
+  title: string;
+  target: string | null;
+  detail: string;
+  technique?: string | null;
+  source: string;
+  at: string;
+}
+
+export interface AttackTechnique {
+  id: string;
+  name: string | null;
+  tactic: string | null;
+  observations: number;
+  sources: string[];
+}
+
+export interface PentestReport {
+  meta: { title: string; generated_at: string; operator: string | null; console_host: string | null };
+  scope: { targets: string[]; telemetry_host: string | null; os_name: string | null };
+  summary: {
+    total_tests: number;
+    tools_used: Record<string, number>;
+    finding_count: number;
+    technique_count: number;
+    severity_breakdown: Record<string, number>;
+  };
+  methodology: { tool: string; status: string; role: string }[];
+  findings: ReportFinding[];
+  attack_coverage: AttackTechnique[];
+  timeline: { at: string; integration: string; kind: string; title: string; summary: string }[];
+}
+
 export interface AnalyticsRow {
   id: string;
   label: string;

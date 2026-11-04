@@ -12,6 +12,7 @@ import { Reports } from "./pages/Reports";
 import { Range } from "./pages/Range";
 import { Integrations } from "./pages/Integrations";
 import { OperationsCenter } from "./pages/OperationsCenter";
+import { Report as PentestReport } from "./pages/Report";
 import type { AnalyticsRow } from "./types";
 
 const REFRESH_ON = new Set(["KILL_SWITCH_ACTIVATED", "KILL_SWITCH_ENGAGED", "SIMULATION_COMPLETE", "PLAN_CREATED"]);
@@ -127,6 +128,7 @@ export default function App() {
         <Route element={<Layout toasts={toasts} />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/central" element={<OperationsCenter />} />
+          <Route path="/report" element={<PentestReport />} />
           <Route path="/ddos" element={<Operation kind="ddos" />} />
           <Route path="/bruteforce" element={<Operation kind="bruteforce" />} />
           <Route path="/rat" element={<Operation kind="ratuba" />} />

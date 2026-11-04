@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Button, Empty, Icon, Panel, Pill, SectionLabel } from "../components/ui";
-import type { CalderaAnalysis, CalderaSample, IntegrationStatus } from "../types";
+import type { CalderaAnalysis, CalderaSample, IntegrationStatus, VervetEmulateResult } from "../types";
 
 const CATEGORY_LABEL: Record<string, string> = {
   analysis: "Analysis",
@@ -154,6 +154,13 @@ function VervetPanel({ status }: { status: IntegrationStatus }) {
   const [error, setError] = useState<string | null>(null);
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
 
+  const suggested = (status.detail?.suggested_target as string | undefined) ?? "127.0.0.1";
+  const guiTechs = (status.detail?.gui_techniques as string[] | undefined) ?? ["T1046"];
+  const [target, setTarget] = useState(suggested);
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState<string | null>(null);
+  const [scan, setScan] = useState<VervetEmulateResult | null>(null);
+
   const describe = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -165,6 +172,19 @@ function VervetPanel({ status }: { status: IntegrationStatus }) {
       setBusy(false);
     }
   }, []);
+
+  const runScan = useCallback(async () => {
+    setScanning(true);
+    setScanErr(null);
+    try {
+      setScan(await api.vervetEmulate({ target, technique: guiTechs[0] }));
+    } catch (e) {
+      setScanErr(String((e as Error).message));
+    } finally {
+      setScanning(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
 
   const verbs = (doc?.verbs as string[] | undefined) ?? [];
   const techniques = (doc?.techniques as Record<string, unknown>[] | undefined) ?? [];
@@ -188,6 +208,44 @@ function VervetPanel({ status }: { status: IntegrationStatus }) {
           <code className="block rounded border border-line bg-canvas px-2.5 py-2 font-mono text-2xs text-muted">
             cargo build --release -p vervet-cli
           </code>
+        )}
+        {status.available && (
+          <div className="flex flex-col gap-2 rounded border border-line bg-canvas p-3">
+            <SectionLabel index="scan" label="Service discovery scan" hint={guiTechs.join(", ")} />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="target IPv4 (e.g. 127.0.0.1)"
+                className="h-8 w-48 rounded border border-line bg-surface px-2 font-mono text-xs text-ink"
+              />
+              <Button variant="danger" onClick={runScan} disabled={scanning || !target}>
+                <Icon name="pulse" size={13} />
+                {scanning ? "Scanning…" : "Run scan"}
+              </Button>
+              <span className="text-2xs text-faint">Auto-signs a scope for this target · authorized use only</span>
+            </div>
+            {scanErr && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{scanErr}</p>}
+            {scan && (
+              <div className="flex flex-col gap-2">
+                <div className="text-2xs text-muted">
+                  {scan.technique} vs <span className="font-mono text-ink">{scan.target}</span> · engagement{" "}
+                  <span className="font-mono">{scan.engagement_id}</span> · {scan.findings.length} observation(s)
+                </div>
+                {scan.findings.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {scan.findings.map((f) => (
+                      <span key={f.handle} className="rounded border border-ok/30 bg-ok/10 px-2 py-0.5 font-mono text-2xs text-ok">
+                        {f.detail} <span className="text-muted">open</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-2xs text-muted">No open service ports observed.</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
         {doc && (

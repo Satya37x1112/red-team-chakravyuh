@@ -10,6 +10,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "Dashboard", icon: "grid" },
       { to: "/central", label: "Operations Center", icon: "hub" },
+      { to: "/report", label: "Pentest report", icon: "shield" },
       { to: "/history", label: "Execution history", icon: "history" },
     ],
   },
