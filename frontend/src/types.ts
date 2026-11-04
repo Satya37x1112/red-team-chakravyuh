@@ -171,6 +171,23 @@ export interface CentralSummary {
   artifacts: { total: number; by_integration: Record<string, number>; recent: ArtifactRow[] };
 }
 
+export interface SmartIssue {
+  severity: string;
+  title: string;
+  evidence: string;
+  attacker_note: string;
+  recommendation: string;
+}
+
+export interface SmartAnalysis {
+  headline: string | null;
+  model: string | null;
+  issue_count: number;
+  severity_counts: Record<string, number>;
+  hosts_scanned: string[];
+  issues: SmartIssue[];
+}
+
 export interface VervetFinding {
   handle: string;
   kind: string | null;

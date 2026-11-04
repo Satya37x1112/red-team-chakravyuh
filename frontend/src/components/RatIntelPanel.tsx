@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { Button, Empty, Icon, Panel, Pill } from "./ui";
-import type { ArtifactDetail, ArtifactRow } from "../types";
+import type { ArtifactDetail, ArtifactRow, SmartAnalysis } from "../types";
+import type { StateTone } from "../lib";
 
 const TOOLS = "vervet,caldera,pentestgpt";
+
+const SEV_TONE: Record<string, StateTone> = {
+  critical: "crit",
+  high: "crit",
+  medium: "warn",
+  low: "ok",
+  info: "muted",
+};
 
 const LABEL: Record<string, string> = { vervet: "vervet", caldera: "CALDERA", pentestgpt: "PentestGPT" };
 const TONE: Record<string, "ok" | "warn" | "crit" | "muted"> = {
@@ -24,12 +33,13 @@ function fmt(iso: string): string {
  *  analysis, and PentestGPT run, pulled from the central artifact store. */
 export function RatIntelPanel() {
   const [rows, setRows] = useState<ArtifactRow[] | null>(null);
+  const [intel, setIntel] = useState<SmartAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<ArtifactDetail | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    // Sync any PentestGPT CLI runs first, then fetch the three tools' artifacts.
+    // Sync any PentestGPT CLI runs first, then fetch artifacts + the smart analysis.
     api
       .pentestgptIngest()
       .catch(() => undefined)
@@ -38,6 +48,10 @@ export function RatIntelPanel() {
           .artifacts(TOOLS)
           .then(setRows)
           .catch((e) => setError(String((e as Error).message)));
+        api
+          .analysis()
+          .then(setIntel)
+          .catch(() => undefined);
       });
   }, []);
 
@@ -78,6 +92,52 @@ export function RatIntelPanel() {
             </Pill>
           ))}
         </div>
+
+        {intel && intel.issue_count > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <div className="rounded-lg border-2 border-crit/40 bg-crit/5 p-3.5">
+              <div className="flex items-center gap-2">
+                <Icon name="alert" size={14} className="text-crit" />
+                <span className="font-mono text-2xs uppercase tracking-wide text-crit">
+                  Smart analysis — kya dikkat hai
+                </span>
+                <span className="h-px flex-1 bg-crit/20" />
+                {intel.model && <span className="font-mono text-2xs text-faint">{intel.model}</span>}
+              </div>
+              {intel.headline && (
+                <p className="mt-2 text-[14px] font-semibold leading-snug text-ink">{intel.headline}</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(["critical", "high", "medium", "low"] as const).map((s) =>
+                  intel.severity_counts[s] ? (
+                    <Pill key={s} tone={SEV_TONE[s]}>
+                      {s} · {intel.severity_counts[s]}
+                    </Pill>
+                  ) : null
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {intel.issues.map((iss, i) => (
+                <div key={i} className="rounded-lg border border-line bg-surface p-3">
+                  <div className="flex items-center gap-2">
+                    <Pill tone={SEV_TONE[iss.severity] ?? "muted"}>{iss.severity}</Pill>
+                    <span className="text-[13px] font-semibold text-ink">{iss.title}</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink">
+                    <span className="font-semibold text-crit">Attacker: </span>
+                    {iss.attacker_note}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    <span className="font-semibold text-ok">Fix: </span>
+                    {iss.recommendation}
+                  </p>
+                  <p className="mt-1 font-mono text-2xs text-faint">{iss.evidence}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
 

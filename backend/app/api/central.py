@@ -224,3 +224,156 @@ def pentest_report(db: Session = Depends(get_db)) -> dict:
         "attack_coverage": sorted(techniques.values(), key=lambda t: t["id"]),
         "timeline": timeline,
     }
+
+
+# Offensive knowledge base: open service port -> (service, severity, attacker note, hardening).
+_PORT_INTEL: dict[int, tuple[str, str, str, str]] = {
+    21: ("FTP", "medium", "Often cleartext / anonymous login — sniff or guess creds, read/write files.",
+         "Disable FTP or enforce FTPS; no anonymous access."),
+    22: ("SSH", "medium", "Credential brute force and key reuse; a direct remote foothold if creds fall.",
+         "Key-only auth, disable password login, fail2ban/rate-limit."),
+    23: ("Telnet", "high", "Cleartext protocol — credentials are trivially sniffed.",
+         "Disable Telnet entirely; use SSH."),
+    80: ("HTTP", "medium", "Web attack surface — enumerate the app for injection, auth bypass, upload flaws.",
+         "Put behind TLS/WAF; patch and review the app."),
+    135: ("MSRPC", "high", "RPC/DCOM endpoint mapper — enumeration and coercion (PetitPotam-class) pivots.",
+          "Block 135 at the host firewall from untrusted networks."),
+    139: ("NetBIOS/SMB", "high", "Legacy SMB — null-session user/share enumeration.",
+          "Disable NetBIOS over TCP/IP; restrict SMB to trusted subnets."),
+    443: ("HTTPS", "medium", "Encrypted web surface — still enumerate the app and its auth.",
+          "Patch the app; strong TLS; WAF."),
+    445: ("SMB", "critical", "Lateral movement, SMB relay, share/user enumeration, and EternalBlue-class RCE on "
+          "unpatched hosts — a top red-team pivot.",
+          "Patch (MS17-010+), require SMB signing, firewall 445 off untrusted networks, disable SMBv1."),
+    1433: ("MSSQL", "high", "Direct database exposure — xp_cmdshell RCE if creds/sa fall.",
+           "Firewall the DB, strong auth, disable xp_cmdshell."),
+    3306: ("MySQL", "high", "Direct database exposure — credential attacks and data theft.",
+           "Bind to localhost / firewall; strong auth."),
+    3389: ("RDP", "high", "Credential brute force and BlueKeep-class RCE — a prime interactive foothold.",
+           "NLA on, MFA/RD Gateway, lock down source IPs, patch."),
+    5432: ("PostgreSQL", "high", "Direct database exposure — credential attacks and data theft.",
+           "Bind to localhost / firewall; strong auth."),
+    8080: ("HTTP-alt", "medium", "App/proxy surface — enumerate for the same web flaws as port 80.",
+           "TLS + auth in front; patch the app."),
+}
+
+
+def _port_of(detail: str | None) -> int | None:
+    if not detail:
+        return None
+    m = re.search(r"(\d+)\s*$", detail)
+    return int(m.group(1)) if m else None
+
+
+@router.get("/analysis")
+def smart_analysis(ai: bool = False, db: Session = Depends(get_db)) -> dict:
+    """Turn the integrated emulation data into prioritized, red-team-framed issues.
+
+    Fast by default (grounded heuristic headline). Pass ?ai=true to also try an
+    LLM-written headline — slower and best-effort, since free models can lag.
+    """
+    arts = db.scalars(
+        select(IntegrationArtifact)
+        .where(IntegrationArtifact.integration.in_(["vervet", "caldera", "pentestgpt"]))
+        .order_by(IntegrationArtifact.created_at.desc())
+    ).all()
+
+    issues: list[dict] = []
+    host_ports: dict[str, set[int]] = {}
+    caldera_techniques = 0
+    caldera_ok = 0
+
+    for a in arts:
+        p = a.payload or {}
+        if a.integration == "vervet" and a.kind == "emulate":
+            tgt = p.get("target") or "target"
+            for f in p.get("findings", []):
+                port = _port_of(f.get("detail"))
+                if port is not None:
+                    host_ports.setdefault(tgt, set()).add(port)
+        elif a.integration == "caldera" and a.kind == "analysis":
+            stats = p.get("stats", {})
+            caldera_techniques = max(caldera_techniques, stats.get("distinct_techniques", 0))
+            caldera_ok = max(caldera_ok, stats.get("success", 0))
+
+    # One issue per exposed, interesting service, de-duplicated across hosts.
+    for host, ports in sorted(host_ports.items()):
+        for port in sorted(ports):
+            intel = _PORT_INTEL.get(port)
+            if not intel:
+                continue
+            svc, sev, note, fix = intel
+            issues.append(
+                {
+                    "severity": sev,
+                    "title": f"{svc} exposed on {host} (tcp/{port})",
+                    "evidence": f"vervet T1046 observed tcp/{port} open on {host}.",
+                    "attacker_note": note,
+                    "recommendation": fix,
+                }
+            )
+
+    if caldera_techniques:
+        issues.append(
+            {
+                "severity": "medium",
+                "title": f"Adversary TTPs executed unimpeded ({caldera_techniques} techniques)",
+                "evidence": f"CALDERA ran {caldera_techniques} ATT&CK techniques; {caldera_ok} steps succeeded.",
+                "attacker_note": "Successful discovery/execution with no visible blocking means the kill-chain early "
+                "stages are open — expect follow-on credential access and lateral movement.",
+                "recommendation": "Deploy EDR + Sysmon, alert on the executed technique IDs, and tune detections "
+                "until these steps fail or fire alarms.",
+            }
+        )
+
+    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    issues.sort(key=lambda i: rank.get(i["severity"], 5))
+    counts = {s: sum(1 for i in issues if i["severity"] == s) for s in ("critical", "high", "medium", "low", "info")}
+
+    # Smart headline: a grounded heuristic by default; upgrade to an LLM sentence
+    # only when it comes back clean (free models often dump chain-of-thought).
+    headline = None
+    model = None
+    if issues:
+        n_crit = counts["critical"] + counts["high"]
+        headline = (
+            f"{n_crit} high-impact exposure(s) across {len(host_ports)} host(s) — SMB/RPC/RDP surface offers the "
+            f"fastest path to a foothold and lateral movement."
+            if n_crit
+            else f"{len(issues)} issue(s) identified; attack surface is limited but enumerable."
+        )
+        if ai:
+            top = ", ".join(i["title"] for i in issues[:4])
+            try:
+                from ..integrations import _llm
+
+                sys_p = (
+                    "You are a red team lead. Reply with ONLY one plain sentence (max 35 words), no lists, no "
+                    "markdown, no preamble: state the biggest risk and the most likely attack path from these "
+                    "authorized-lab findings. Offensive framing."
+                )
+                text, m, _errs = _llm.complete(
+                    sys_p, f"Findings: {top}. Counts: {counts}.", max_tokens=120, temperature=0.3
+                )
+                cand = (text or "").strip()
+                first = cand.splitlines()[0].strip() if cand else ""
+                bad = (
+                    not cand
+                    or len(cand.splitlines()) > 1
+                    or len(first) > 260
+                    or bool(re.match(r"^\d+[.)]", first))
+                    or any(x in cand for x in ("**", "Role:", "Task:", "Analyze", "```", "Findings:"))
+                )
+                if not bad:
+                    headline, model = first, m
+            except Exception:
+                pass
+
+    return {
+        "headline": headline,
+        "model": model,
+        "issue_count": len(issues),
+        "severity_counts": counts,
+        "hosts_scanned": sorted(host_ports.keys()),
+        "issues": issues,
+    }

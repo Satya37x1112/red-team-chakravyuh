@@ -12,6 +12,7 @@ import type {
   PentestReport,
   SessionBrief,
   SessionDetail,
+  SmartAnalysis,
   Telemetry,
   VervetEmulateResult,
 } from "./types";
@@ -70,6 +71,7 @@ export const api = {
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),
+  analysis: () => fetch("/api/central/analysis").then(json<SmartAnalysis>),
   artifacts: (integration?: string) =>
     fetch(`/api/integrations/artifacts${integration ? `?integration=${integration}` : ""}`).then(json<ArtifactRow[]>),
   artifact: (id: string) => fetch(`/api/integrations/artifacts/${id}`).then(json<ArtifactDetail>),
