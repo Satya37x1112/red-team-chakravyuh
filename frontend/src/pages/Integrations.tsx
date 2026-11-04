@@ -368,6 +368,105 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
   );
 }
 
+function HydraPanel({ status }: { status: IntegrationStatus }) {
+  const runnable = status.available && status.detail?.runnable === true;
+  const caps = (status.detail?.caps as { max_tasks?: number; max_attempts?: number; max_run_seconds?: number }) ?? {};
+  const [tasks, setTasks] = useState<number>(caps.max_tasks ?? 4);
+  const [secs, setSecs] = useState<number>(Math.min(60, caps.max_run_seconds ?? 60));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  const run = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await api.hydraRun({ tasks, run_seconds: secs }));
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }, [tasks, secs]);
+
+  const found = (result?.found as { login?: string; service?: string; port?: number }[] | undefined) ?? [];
+
+  return (
+    <Panel
+      title="THC-Hydra Login Cracker"
+      sub="The real credential-test driver. Fail-closed: runs only the operator list pair at an authorized target."
+      actions={<Pill tone={statusTone(status)}>{runnable ? "armed" : status.available ? "disarmed" : "unavailable"}</Pill>}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-muted">{status.reason}</p>
+        <DetailChips detail={status.detail} />
+        {runnable ? (
+          <>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-2xs text-muted">
+                Tasks (≤{caps.max_tasks})
+                <input
+                  type="number"
+                  min={1}
+                  max={caps.max_tasks}
+                  value={tasks}
+                  onChange={(e) => setTasks(Number(e.target.value))}
+                  className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-2xs text-muted">
+                Seconds (≤{caps.max_run_seconds})
+                <input
+                  type="number"
+                  min={1}
+                  max={caps.max_run_seconds}
+                  value={secs}
+                  onChange={(e) => setSecs(Number(e.target.value))}
+                  className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
+                />
+              </label>
+              <Button variant="danger" onClick={run} disabled={busy}>
+                <Icon name="pulse" size={13} />
+                {busy ? "Running…" : "Run credential test"}
+              </Button>
+            </div>
+            <p className="text-2xs text-faint">
+              Authorized lab targets only. Target, service, and wordlists are fixed server-side; cracked passwords are
+              never returned to the UI.
+            </p>
+          </>
+        ) : (
+          <code className="block rounded border border-line bg-canvas px-2.5 py-2 font-mono text-2xs text-muted">
+            HYDRA_ENABLED=true · HYDRA_TARGET=… · HYDRA_USERLIST_PATH=… · HYDRA_PASSLIST_PATH=…
+          </code>
+        )}
+        {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
+        {result && (
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <StatTile label="Pairs found" value={Number(result.found_count ?? 0)} tone={Number(result.found_count ?? 0) ? "crit" : "ok"} />
+              <StatTile label="Exit code" value={result.timed_out ? "timeout" : String(result.exit_code ?? "?")} />
+              <StatTile label="Tasks" value={String((result.params as { tasks?: number })?.tasks ?? "?")} />
+            </div>
+            {typeof result.message === "string" && (
+              <p className="rounded border border-line bg-canvas px-3 py-2 text-xs text-muted">{result.message}</p>
+            )}
+            {found.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {found.map((f, i) => (
+                  <span key={i} className="rounded border border-crit/30 bg-crit/10 px-2 py-0.5 font-mono text-2xs text-crit">
+                    {f.login}@{f.service}:{f.port} <span className="text-muted">weak creds</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 function GenericPanel({ status }: { status: IntegrationStatus }) {
   return (
     <Panel
@@ -430,6 +529,7 @@ export function Integrations() {
         <div className="grid gap-4 xl:grid-cols-2">
           {byName.caldera && <CalderaPanel status={byName.caldera} />}
           {byName.locust && <LocustPanel status={byName.locust} />}
+          {byName.hydra && <HydraPanel status={byName.hydra} />}
           {byName.vervet && <VervetPanel status={byName.vervet} />}
           {byName.pentestgpt && <GenericPanel status={byName.pentestgpt} />}
         </div>

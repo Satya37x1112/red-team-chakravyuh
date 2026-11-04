@@ -1,0 +1,635 @@
+#include "hydra-http.h"
+#include "sasl.h"
+
+extern const unsigned char HYDRA_EXIT[5];
+char *webtarget = NULL;
+char *slash = "/";
+char *http_buf = NULL;
+
+#define END_CONDITION_MAX_LEN 100
+static char end_condition[END_CONDITION_MAX_LEN];
+int end_condition_type = -1;
+char redirect_condition[REDIRECT_CONDITION_MAX_LEN];
+int redirect_condition_type = REDIRECT_CONDITION_SUCCESS;
+
+int32_t webport;
+int32_t http_auth_mechanism = AUTH_UNASSIGNED;
+
+static int32_t http_redirect_location_matches(const char *response) {
+  const char *line;
+
+  if (response == NULL || redirect_condition[0] == 0)
+    return 0;
+
+  line = response;
+  while ((line = hydra_strcasestr(line, "location:")) != NULL) {
+    if (line == response || *(line - 1) == '\n' || *(line - 1) == '\r') {
+      const char *line_end = strpbrk(line, "\r\n");
+      const char *match = hydra_strcasestr(line + strlen("location:"), redirect_condition);
+      return (match != NULL && (line_end == NULL || match < line_end));
+    }
+    line += strlen("location:");
+  }
+
+  return 0;
+}
+
+static int32_t http_response_is_success(char *status, const char *response) {
+  if (status == NULL)
+    return 0;
+
+  if (end_condition_type >= 0) {
+#ifdef HAVE_PCRE
+    return (hydra_string_match((char*)response, end_condition) == end_condition_type);
+#else
+    return ((strstr((char*)response, end_condition) == NULL ? 0 : 1) == end_condition_type);
+#endif
+  }
+
+  if (*status == '2')
+    return 1;
+
+  if (*status == '3') {
+    switch (redirect_condition_type) {
+    case REDIRECT_CONDITION_SUCCESS:
+      return 1;
+    case REDIRECT_CONDITION_LOCATION:
+      return http_redirect_location_matches(response);
+    case REDIRECT_CONDITION_FAILURE:
+    default:
+      return 0;
+    }
+  }
+
+  return 0;
+}
+
+int32_t start_http(int32_t s, char *ip, int32_t port, unsigned char options, char *miscptr, FILE *fp, char *type, ptr_header_node ptr_head) {
+  char *empty = "";
+  char *login, *pass, *buffer, buffer2[500];
+  char *header;
+  char *ptr, *fooptr;
+  int32_t complete_line = 0, buffer_size;
+  char tmpreplybuf[1024] = "", *tmpreplybufptr;
+
+  if (strlen(login = hydra_get_next_login()) == 0)
+    login = empty;
+  if (strlen(pass = hydra_get_next_password()) == 0)
+    pass = empty;
+
+  if (strcmp(type, "POST") == 0)
+    add_header(&ptr_head, "Content-Length", "0", HEADER_TYPE_DEFAULT);
+
+  header = stringify_headers(&ptr_head);
+  if (header == NULL)
+    return 3;
+
+  buffer_size = strlen(header) + 500;
+  if (!(buffer = malloc(buffer_size))) {
+    free(header);
+    return 3;
+  }
+
+  // we must reset this if buf is NULL and we do MD5 digest
+  if (http_buf == NULL && http_auth_mechanism == AUTH_DIGESTMD5)
+    http_auth_mechanism = AUTH_BASIC;
+
+  if (use_proxy > 0 && proxy_count > 0)
+    selected_proxy = random() % proxy_count;
+
+  switch (http_auth_mechanism) {
+  case AUTH_BASIC:
+    sprintf(buffer2, "%.50s:%.50s", login, pass);
+    hydra_tobase64((unsigned char *)buffer2, strlen(buffer2), sizeof(buffer2));
+
+    /* again: no snprintf to be portable. don't worry, buffer can't overflow */
+    if (use_proxy == 1 && proxy_authentication[selected_proxy] != NULL)
+      sprintf(buffer,
+              "%s http://%s%.250s HTTP/1.1\r\nHost: %s\r\nConnection: "
+              "close\r\nAuthorization: Basic %s\r\nProxy-Authorization: Basic "
+              "%s\r\nUser-Agent: Mozilla/4.0 (Hydra)\r\n%s\r\n",
+              type, webtarget, miscptr, webtarget, buffer2, proxy_authentication[selected_proxy], header);
+    else {
+      if (use_proxy == 1)
+        sprintf(buffer,
+                "%s http://%s%.250s HTTP/1.1\r\nHost: %s\r\nConnection: "
+                "close\r\nAuthorization: Basic %s\r\nUser-Agent: Mozilla/4.0 "
+                "(Hydra)\r\n%s\r\n",
+                type, webtarget, miscptr, webtarget, buffer2, header);
+      else
+        sprintf(buffer,
+                "%s %.250s HTTP/1.1\r\nHost: %s\r\nConnection: "
+                "close\r\nAuthorization: Basic %s\r\nUser-Agent: Mozilla/4.0 "
+                "(Hydra)\r\n%s\r\n",
+                type, miscptr, webtarget, buffer2, header);
+    }
+    if (debug)
+      hydra_report(stderr, "C:%s\n", buffer);
+    break;
+
+#ifdef LIBOPENSSL
+  case AUTH_DIGESTMD5: {
+    char *pbuffer, *result;
+
+    pbuffer = hydra_strcasestr(http_buf, "WWW-Authenticate: Digest ");
+    /* the success path (200 OK, no auth header) returns NULL here. */
+    if (pbuffer == NULL) {
+      http_auth_mechanism = AUTH_BASIC;
+      free(buffer);
+      free(header);
+      return 1;
+    }
+    strncpy(buffer, pbuffer + strlen("WWW-Authenticate: Digest "), buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+
+    fooptr = buffer2;
+    result = sasl_digest_md5(fooptr, login, pass, buffer, miscptr, type, webtarget, webport, header);
+    if (result == NULL) {
+      free(buffer);
+      free(header);
+      return 3;
+    }
+
+    if (debug)
+      hydra_report(stderr, "C:%s\n", buffer2);
+    strcpy(buffer, buffer2);
+  } break;
+#endif
+
+  case AUTH_NTLM: {
+    unsigned char buf1[4096];
+    unsigned char buf2[4096];
+    char *pos = NULL;
+
+    // send auth and receive challenge
+    // send auth request: let the server send it's own hostname and domainname
+    buildAuthRequest((tSmbNtlmAuthRequest *)buf2, 0, NULL, NULL);
+    to64frombits(buf1, buf2, SmbLength((tSmbNtlmAuthRequest *)buf2));
+
+    /* to be portable, no snprintf, buffer is big enough so it can't overflow */
+    // send the first..
+    if (use_proxy == 1 && proxy_authentication[selected_proxy] != NULL)
+      sprintf(buffer,
+              "%s http://%s%s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+              "%s\r\nProxy-Authorization: Basic %s\r\nUser-Agent: Mozilla/4.0 "
+              "(Hydra)\r\n%s\r\n",
+              type, webtarget, miscptr, webtarget, buf1, proxy_authentication[selected_proxy], header);
+    else {
+      if (use_proxy == 1)
+        sprintf(buffer,
+                "%s http://%s%s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+                "%s\r\nUser-Agent: Mozilla/4.0 (Hydra)\r\n%s\r\n",
+                type, webtarget, miscptr, webtarget, buf1, header);
+      else
+        sprintf(buffer,
+                "%s %s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+                "%s\r\nUser-Agent: Mozilla/4.0 (Hydra)\r\n%s\r\n",
+                type, miscptr, webtarget, buf1, header);
+    }
+
+    if (hydra_send(s, buffer, strlen(buffer), 0) < 0) {
+      free(buffer);
+      free(header);
+      return 1;
+    }
+
+    // receive challenge
+    if (http_buf != NULL)
+      free(http_buf);
+
+    http_buf = hydra_receive_line(s);
+    if (http_buf == NULL) {
+      if (verbose)
+        hydra_report(stderr, "[ERROR] Server did not answer\n");
+      free(buffer);
+      free(header);
+      return 3;
+    }
+
+    pos = hydra_strcasestr(http_buf, "WWW-Authenticate: NTLM ");
+    if (pos != NULL) {
+      char *str;
+
+      pos += 23;
+      if ((str = strchr(pos, '\r')) != NULL) {
+        pos[str - pos] = 0;
+      }
+      if ((str = strchr(pos, '\n')) != NULL) {
+        pos[str - pos] = 0;
+      }
+    } else {
+      hydra_report(stderr, "[ERROR] It is not NTLM authentication type\n");
+      free(buffer);
+      free(header);
+      free(http_buf);
+      http_buf = NULL;
+      return 3;
+    }
+
+    // recover challenge
+    if (from64tobits_n((char *)buf1, pos, sizeof(buf1)) < 0) {
+      hydra_report(stderr, "[ERROR] HTTP NTLM AUTH: oversized challenge\n");
+      free(http_buf);
+      http_buf = NULL;
+      free(buffer);
+      free(header);
+      return 3;
+    }
+    free(http_buf);
+    http_buf = NULL;
+
+    // Send response
+    buildAuthResponse((tSmbNtlmAuthChallenge *)buf1, (tSmbNtlmAuthResponse *)buf2, 0, login, pass, NULL, NULL);
+    to64frombits(buf1, buf2, SmbLength((tSmbNtlmAuthResponse *)buf2));
+
+    /* The Type-3 base64 response embeds a server-controlled domain string and
+     * can grow well past the initial buffer_size for a malicious server. Grow
+     * the buffer to hold it (plus operator-supplied bits) before sprintf. */
+    {
+      size_t needed = strlen((char *)buf1) + strlen(header) + 1024;
+      if (needed > (size_t)buffer_size) {
+        char *new_buffer = realloc(buffer, needed);
+        if (new_buffer == NULL) {
+          free(buffer);
+          free(header);
+          return 3;
+        }
+        buffer = new_buffer;
+        buffer_size = needed;
+      }
+    }
+
+    // create the auth response
+    if (use_proxy == 1 && proxy_authentication[selected_proxy] != NULL)
+      sprintf(buffer,
+              "%s http://%s%s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+              "%s\r\nProxy-Authorization: Basic %s\r\nUser-Agent: Mozilla/4.0 "
+              "(Hydra)\r\n%s\r\n",
+              type, webtarget, miscptr, webtarget, buf1, proxy_authentication[selected_proxy], header);
+    else {
+      if (use_proxy == 1)
+        sprintf(buffer,
+                "%s http://%s%s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+                "%s\r\nUser-Agent: Mozilla/4.0 (Hydra)\r\n%s\r\n",
+                type, webtarget, miscptr, webtarget, buf1, header);
+      else
+        sprintf(buffer,
+                "%s %s HTTP/1.1\r\nHost: %s\r\nAuthorization: NTLM "
+                "%s\r\nUser-Agent: Mozilla/4.0 (Hydra)\r\n%s\r\n",
+                type, miscptr, webtarget, buf1, header);
+    }
+
+    if (debug)
+      hydra_report(stderr, "C:%s\n", buffer);
+  } break;
+  }
+
+  if (hydra_send(s, buffer, strlen(buffer), 0) < 0) {
+    free(buffer);
+    free(header);
+    return 1;
+  }
+
+  if (http_buf != NULL)
+    free(http_buf);
+  http_buf = hydra_receive_line(s);
+  complete_line = 0;
+  tmpreplybuf[0] = 0;
+
+  while (http_buf != NULL && (strstr(http_buf, "HTTP/1.") == NULL || (strchr(http_buf, '\n') == NULL && complete_line == 0))) {
+    if (debug)
+      printf("il: %d, tmpreplybuf: %s, http_buf: %s\n", complete_line, tmpreplybuf, http_buf);
+    if (tmpreplybuf[0] == 0 && strstr(http_buf, "HTTP/1.") != NULL) {
+      strncpy(tmpreplybuf, http_buf, sizeof(tmpreplybuf) - 1);
+      tmpreplybuf[sizeof(tmpreplybuf) - 1] = 0;
+      free(http_buf);
+      http_buf = hydra_receive_line(s);
+    } else if (tmpreplybuf[0] != 0) {
+      complete_line = 1;
+      if ((tmpreplybufptr = malloc(strlen(tmpreplybuf) + strlen(http_buf) + 1)) != NULL) {
+        strcpy(tmpreplybufptr, tmpreplybuf);
+        strcat(tmpreplybufptr, http_buf);
+        free(http_buf);
+        http_buf = tmpreplybufptr;
+        if (debug)
+          printf("http_buf now: %s\n", http_buf);
+      }
+    } else {
+      free(http_buf);
+      http_buf = hydra_receive_line(s);
+    }
+  }
+
+  // if server cut the connection, just exit cleanly or
+  // this will be an infinite loop
+  if (http_buf == NULL) {
+    if (verbose)
+      hydra_report(stderr, "[ERROR] Server did not answer\n");
+    free(buffer);
+    free(header);
+    return 3;
+  }
+
+  if (debug)
+    hydra_report(stderr, "S:%s\n", http_buf);
+
+  ptr = ((char *)strchr(http_buf, ' '));
+  if (ptr != NULL)
+    ptr++;
+  /*
+   * Result classification.
+   *
+   * The outer status filter (2xx / 3xx / 403 / 404) still gates the
+   * "candidate success" branch so that the auth-mechanism re-detection
+   * logic below stays reachable for 401 / 5xx, but the verdict inside
+   * that branch is now decided as follows:
+   *
+   *   - When the operator supplied an explicit F= / S= condition,
+   *     the operator's filter is authoritative regardless of status.
+   *
+   *   - When no F= / S= is supplied, plain 2xx responses are treated
+   *     as successful logins. Redirects use the explicit R= policy,
+   *     which defaults to success to preserve the module's historical
+   *     3xx behaviour. Earlier revisions also reported 403 / 404 as
+   *     success by default, which is a classic false-positive source:
+   *       * 401 Unauthorized is the only HTTP status that universally
+   *         indicates wrong credentials for Basic / Digest / NTLM;
+   *       * 403 Forbidden is returned by many applications both for
+   *         bad credentials and for access denial after successful
+   *         authentication, so it cannot prove either outcome on its
+   *         own;
+   *       * 404 Not Found is orthogonal to authentication entirely;
+   *       * 3xx redirects can target a login page (failure) or the
+   *         post-login destination (success) and cannot be
+   *         disambiguated without inspecting the body.
+   *     Operators who want stricter redirect handling can pass
+   *     R=failure or R=location=<text>. 403 / 404 still require an
+   *     explicit S= / F= condition because they do not carry enough
+   *     authentication meaning on their own.
+   */
+  if (ptr != NULL && (*ptr == '2' || *ptr == '3' || strncmp(ptr, "403", 3) == 0 || strncmp(ptr, "404", 3) == 0)) {
+    int32_t positive = http_response_is_success(ptr, http_buf);
+
+    if (positive) {
+      if (debug && end_condition_type >= 0)
+        hydra_report(stderr, "END condition %s match.\n", end_condition);
+      hydra_report_found_host(port, ip, "www", fp);
+      hydra_completed_pair_found();
+    } else {
+      if (debug) {
+        if (end_condition_type >= 0)
+          hydra_report(stderr, "End condition not match continue.\n");
+        else if (*ptr == '3')
+          hydra_report(stderr, "Redirect response (%.3s) did not match R= policy, treating as failure.\n", ptr);
+        else
+          hydra_report(stderr, "Non-2xx response (%.3s) without F=/S=, treating as failure.\n", ptr);
+      }
+      hydra_completed_pair();
+    }
+    if (http_buf != NULL) {
+      free(http_buf);
+      http_buf = NULL;
+    }
+  } else {
+    if (ptr != NULL && *ptr != '4')
+      fprintf(stderr, "[WARNING] Unusual return code: %.3s for %s:%s\n", (char *)ptr, login, pass);
+
+    // the first authentication type failed, check the type from server header
+    if ((hydra_strcasestr(http_buf, "WWW-Authenticate: Basic") == NULL) && (http_auth_mechanism == AUTH_BASIC)) {
+      // seems the auth supported is not Basic scheme so testing further
+      int32_t find_auth = 0;
+
+      if (hydra_strcasestr(http_buf, "WWW-Authenticate: NTLM") != NULL) {
+        http_auth_mechanism = AUTH_NTLM;
+        find_auth = 1;
+      }
+#ifdef LIBOPENSSL
+      if (hydra_strcasestr(http_buf, "WWW-Authenticate: Digest") != NULL) {
+        http_auth_mechanism = AUTH_DIGESTMD5;
+        find_auth = 1;
+      }
+#endif
+
+      if (find_auth) {
+        //        free(http_buf);
+        //        http_buf = NULL;
+        free(buffer);
+        free(header);
+        return 1;
+      }
+    }
+    hydra_completed_pair();
+  }
+  //  free(http_buf);
+  //  http_buf = NULL;
+
+  free(buffer);
+  free(header);
+  if (memcmp(hydra_get_next_pair(), &HYDRA_EXIT, sizeof(HYDRA_EXIT)) == 0)
+    return 3;
+
+  return 1;
+}
+
+void service_http(char *ip, int32_t sp, unsigned char options, char *miscptr, FILE *fp, int32_t port, char *hostname, char *type) {
+  int32_t run = 1, next_run = 1, sock = -1;
+  int32_t myport = PORT_HTTP, mysslport = PORT_HTTP_SSL;
+  char *ptr;
+  ptr_header_node ptr_head = NULL;
+#ifdef AF_INET6
+  unsigned char addr6[sizeof(struct in6_addr)];
+#endif
+
+  hydra_register_socket(sp);
+  if (memcmp(hydra_get_next_pair(), &HYDRA_EXIT, sizeof(HYDRA_EXIT)) == 0)
+    return;
+
+  if (strlen(miscptr) == 0)
+    miscptr = strdup("/");
+  if (port != 0)
+    webport = port;
+  else if ((options & OPTION_SSL) == 0)
+    webport = myport;
+  else
+    webport = mysslport;
+
+  /* normalise the webtarget for ipv6/port number */
+  webtarget = malloc(strlen(hostname) + 1 /* null */ + 6 /* :65535  */
+#ifdef AF_INET6
+                     + 2 /* [] */
+#endif
+  );
+#ifdef AF_INET6
+  /* let libc decide if target is an ipv6 address */
+  if (inet_pton(AF_INET6, hostname, addr6)) {
+    ptr = webtarget + sprintf(webtarget, "[%s]", hostname);
+  } else {
+#endif
+    ptr = webtarget + sprintf(webtarget, "%s", hostname);
+#ifdef AF_INET6
+  }
+#endif
+  if (use_proxy == 1) {
+    sprintf(ptr, ":%d", webport);
+  } else {
+    if (((options & OPTION_SSL) && webport != PORT_HTTP_SSL) || (!(options & OPTION_SSL) && webport != PORT_HTTP)) {
+      sprintf(ptr, ":%d", webport);
+    }
+  }
+  ptr = NULL;
+
+  /* Advance to options string */
+  ptr = miscptr;
+  while (*ptr != 0 && (*ptr != ':' || *(ptr - 1) == '\\'))
+    ptr++;
+  if (*ptr != 0)
+    *ptr++ = 0;
+  optional1 = ptr;
+
+  redirect_condition_type = REDIRECT_CONDITION_SUCCESS;
+  redirect_condition[0] = 0;
+
+  if (!parse_options(optional1,
+                     &ptr_head)) // this function is in hydra-http-form.c !!
+    run = 4;
+
+  if (http_auth_mechanism == AUTH_UNASSIGNED)
+    http_auth_mechanism = AUTH_BASIC;
+
+  while (1) {
+    next_run = 0;
+    switch (run) {
+    case 1: /* connect and service init function */
+    {
+      if (sock >= 0)
+        sock = hydra_disconnect(sock);
+      if ((options & OPTION_SSL) == 0) {
+        if (port != 0)
+          myport = port;
+        sock = hydra_connect_tcp(ip, myport);
+        port = myport;
+      } else {
+        if (port != 0)
+          mysslport = port;
+        sock = hydra_connect_ssl(ip, mysslport, hostname);
+        port = mysslport;
+      }
+      if (sock < 0) {
+        if (quiet != 1)
+          fprintf(stderr, "[ERROR] Child with pid %d terminating, can not connect\n", (int32_t)getpid());
+        hydra_child_exit(1);
+      }
+      next_run = 2;
+      break;
+    }
+    case 2: /* run the cracking function */
+      next_run = start_http(sock, ip, port, options, miscptr, fp, type, ptr_head);
+      break;
+    case 3: /* clean exit */
+      if (sock >= 0)
+        sock = hydra_disconnect(sock);
+      hydra_child_exit(0);
+      return;
+    default:
+      fprintf(stderr, "[ERROR] Caught unknown return code, exiting!\n");
+      hydra_child_exit(0);
+    }
+    run = next_run;
+  }
+}
+
+void service_http_get(char *ip, int32_t sp, unsigned char options, char *miscptr, FILE *fp, int32_t port, char *hostname) { service_http(ip, sp, options, miscptr, fp, port, hostname, "GET"); }
+
+void service_http_post(char *ip, int32_t sp, unsigned char options, char *miscptr, FILE *fp, int32_t port, char *hostname) { service_http(ip, sp, options, miscptr, fp, port, hostname, "POST"); }
+
+void service_http_head(char *ip, int32_t sp, unsigned char options, char *miscptr, FILE *fp, int32_t port, char *hostname) { service_http(ip, sp, options, miscptr, fp, port, hostname, "HEAD"); }
+
+int32_t service_http_init(char *ip, int32_t sp, unsigned char options, char *miscptr, FILE *fp, int32_t port, char *hostname) {
+  // called before the childrens are forked off, so this is the function
+  // which should be filled if initial connections and service setup has to be
+  // performed once only.
+  //
+  // fill if needed.
+  //
+  // return codes:
+  //   0 all OK
+  //   -1  error, hydra will exit, so print a good error message here
+
+  /*POU CODE */
+  char *start = strstr(miscptr, "F=");
+  if (start == NULL)
+    start = strstr(miscptr, "S=");
+
+  if (start != NULL) {
+    if (start[0] == 'F')
+      end_condition_type = 0;
+    else
+      end_condition_type = 1;
+
+    int condition_len = strlen(start);
+    memset(end_condition, 0, END_CONDITION_MAX_LEN);
+    if (condition_len >= END_CONDITION_MAX_LEN) {
+      hydra_report(stderr, "Condition string cannot be bigger than %u.", END_CONDITION_MAX_LEN);
+      return -1;
+    }
+    // copy condition witout starting string (F= or S=  2char)
+    strncpy(end_condition, start + 2, condition_len - 2);
+    if (debug)
+      hydra_report(stderr, "End condition is %s, mod is %d\n", end_condition, end_condition_type);
+
+    if (*(start - 1) == ' ')
+      start--;
+    memset(start, '\0', condition_len);
+    if (debug)
+      hydra_report(stderr, "Modified options:%s\n", miscptr);
+  } else {
+    if (debug)
+      hydra_report(stderr, "Condition not found\n");
+  }
+
+  return 0;
+}
+
+void usage_http(const char *service) {
+  printf("Module %s requires the page to authenticate.\n"
+         "The following parameters are optional:\n"
+         " (a|A)=auth-type   specify authentication mechanism to use: BASIC, "
+         "NTLM or MD5\n"
+         " (h|H)=My-Hdr\\: foo   to send a user defined HTTP header with each "
+         "request\n"
+         " (F|S)=check for text in the HTTP reply. S= means if this text is "
+         "found, a\n"
+         "       valid account has been found, F= means if this string is "
+         "present the\n"
+         "       combination is invalid. Note: this must be the last option "
+         "supplied.\n"
+         " R=redirect-policy   control how 3xx redirects are interpreted when "
+         "no F= or S=\n"
+         "       condition is supplied. Valid values are success (default), "
+         "failure,\n"
+         "       or location=<text>. With location=<text>, a 3xx response is "
+         "only\n"
+         "       successful if its Location header contains <text>. Use "
+         "location\\:<text>\n"
+         "       if you prefer a colon after the keyword.\n\n"
+         "Default success detection (when no F= or S= is supplied):\n"
+         " - Only plain HTTP 2xx responses are reported as a successful "
+         "login.\n"
+         " - 3xx redirects are treated as successes by default for backwards\n"
+         "   compatibility. Use R=failure or R=location=<text> when stricter\n"
+         "   redirect handling is needed.\n"
+         " - 403 Forbidden and 404 Not Found are treated as failures because\n"
+         "   they cannot reliably prove that the credentials are valid. If\n"
+         "   your target needs either to count as success, supply an explicit\n"
+         "   S= or F= condition.\n\n"
+         "For example:  \"/secret\" or \"http://bla.com/foo/bar:H=Cookie\\: "
+         "sessid=aaaa\" or \"https://test.com:8080/members:A=NTLM\" or\n"
+         "\"/members:A=NTLM:R=location=/dashboard\"\n"
+         "To attack multiple targets, you can use the -M option with a file "
+         "containing the targets and their parameters.\n"
+         "Example file content:\n"
+         "  localhost:5000/protected:A=BASIC\n"
+         "  localhost:5002/protected_path:A=NTLM\n"
+         "  ...\n\n",
+         service);
+}

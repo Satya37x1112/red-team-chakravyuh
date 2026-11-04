@@ -9,13 +9,14 @@ from __future__ import annotations
 
 from .base import Integration, IntegrationStatus
 from .caldera import CalderaIntegration
+from .hydra import HydraIntegration
 from .locust import LocustIntegration
 from .pentestgpt import PentestGPTIntegration
 from .vervet import VervetIntegration
 
 REGISTRY: dict[str, Integration] = {
     cls.name: cls()
-    for cls in (CalderaIntegration, LocustIntegration, VervetIntegration, PentestGPTIntegration)
+    for cls in (CalderaIntegration, LocustIntegration, HydraIntegration, VervetIntegration, PentestGPTIntegration)
 }
 
 

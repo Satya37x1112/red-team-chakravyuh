@@ -54,6 +54,23 @@ class Settings(BaseSettings):
     locust_max_spawn_rate: int = 10     # hard cap on users spawned per second
     locust_max_run_seconds: int = 120   # hard cap on run duration
 
+    # THC-Hydra login-cracker (the real credential-test driver behind the
+    # BruteForce module). Fail-closed, mirroring the Locust gate above: it does
+    # nothing unless hydra_enabled is true AND an authorized target AND an
+    # operator-provided username list AND password list are set. Even then it
+    # only runs that one list pair against that one target, with the attempt
+    # count, parallel task count, and wall-clock duration hard-capped below.
+    # Run only against a host you own or are authorized to test, on the lab net.
+    hydra_bin: str = "hydra"            # path to the hydra binary, or a name on PATH
+    hydra_enabled: bool = False
+    hydra_target: str = ""              # authorized lab host/IP, e.g. 192.168.56.20
+    hydra_service: str = "ssh"          # hydra service module (ssh, ftp, rdp, …)
+    hydra_userlist_path: str = ""       # operator-provided username list (one per line)
+    hydra_passlist_path: str = ""       # operator-provided password list (one per line)
+    hydra_max_tasks: int = 4            # hard cap on parallel connects (hydra -t)
+    hydra_max_attempts: int = 500       # hard cap on users×passwords the list pair may hold
+    hydra_max_run_seconds: int = 120    # hard cap on wall-clock run time
+
     # vervet signed adversary-emulation CLI (Rust binary). Path or name on PATH.
     vervet_bin: str = "vervet"
     # Ed25519 seed (64 hex chars) the backend uses to sign scope manifests for the

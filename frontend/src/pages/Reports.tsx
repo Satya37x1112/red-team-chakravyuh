@@ -6,7 +6,7 @@ import { useLiveContext } from "../live-context";
 import { KINDS, KIND_LIST, clock, parseTs, stateLabel, stateTone } from "../lib";
 import type { Kind } from "../types";
 import { downloadReport } from "./Dashboard";
-import { openReport } from "./report";
+import { openReport } from "./reportHtml";
 
 type Result = Record<string, unknown> | null;
 

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..integrations import all_status, get_integration
 from ..integrations.caldera import analyze, list_samples, load_sample
+from ..integrations.hydra import HydraIntegration
 from ..integrations.locust import LocustIntegration
 from ..integrations.pentestgpt import list_runs as pentestgpt_list_runs
 from ..integrations.vervet import VervetIntegration
@@ -231,4 +232,38 @@ def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
     fails = agg.get("num_failures") if agg else "?"
     summary = f"{p.get('users')} users · {p.get('run_seconds')}s · {reqs} requests, {fails} failures → {p.get('target')}"
     result["artifact_id"] = _save_artifact(db, "locust", "load_test", f"Load test → {p.get('target')}", summary, result)
+    return result
+
+
+# ---- hydra -----------------------------------------------------------------
+
+class HydraRunRequest(BaseModel):
+    tasks: int | None = Field(default=None, ge=1)
+    run_seconds: int | None = Field(default=None, ge=1)
+
+
+@router.post("/hydra/run")
+def hydra_run(req: HydraRunRequest, db: Session = Depends(get_db)) -> dict:
+    integ = HydraIntegration()
+    blocked = integ.preconditions()
+    if blocked:
+        # 423 Locked: disabled, unconfigured, or over the attempt cap.
+        raise HTTPException(423, blocked)
+    try:
+        result = integ.run(tasks=req.tasks, run_seconds=req.run_seconds)
+    except RuntimeError as exc:
+        raise HTTPException(423, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(500, f"hydra run failed: {exc}") from exc
+    p = result.get("params", {})
+    n = result.get("found_count", 0)
+    logins = ", ".join(sorted({f.get("login", "?") for f in result.get("found", [])})) or "none"
+    outcome = "timed out" if result.get("timed_out") else f"exit {result.get('exit_code')}"
+    summary = (
+        f"{p.get('service')}://{p.get('target')} · {p.get('tasks')} tasks · "
+        f"{outcome} · {n} valid pair(s) found (logins: {logins})"
+    )
+    result["artifact_id"] = _save_artifact(
+        db, "hydra", "credential_test", f"Hydra → {p.get('service')}://{p.get('target')}", summary, result
+    )
     return result
