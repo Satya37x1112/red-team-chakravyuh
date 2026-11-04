@@ -8,6 +8,7 @@ import { ModuleResults } from "../components/ModuleResults";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { WordlistPanel } from "../components/WordlistPanel";
 import { RatDetectionsPanel } from "../components/RatDetectionsPanel";
+import { RatIntelPanel } from "../components/RatIntelPanel";
 import { DdosMetricsPanel } from "../components/DdosMetricsPanel";
 import { Button, Icon, Panel, Pill, RiskCells, SectionLabel, Tag } from "../components/ui";
 import { useLiveContext } from "../live-context";
@@ -157,6 +158,13 @@ export function Operation({ kind }: { kind: Kind }) {
           </div>
         )}
       </section>
+
+      {kind === "ratuba" && (
+        <section className="flex flex-col gap-3">
+          <SectionLabel index="IE" label="Integrated emulation data" hint="vervet · CALDERA · PentestGPT" />
+          <RatIntelPanel />
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <SectionLabel index="02" label="Agent decision" hint="read-and-reason · no action taken" />

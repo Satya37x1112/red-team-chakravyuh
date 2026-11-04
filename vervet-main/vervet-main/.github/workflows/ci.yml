@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: test / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: line budget
+        run: bash scripts/check-line-budget.sh 200
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace --no-fail-fast
+
+  ssh-auth-e2e:
+    name: ssh-auth e2e (docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: system libs for ssh2
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+      - name: clippy (ssh-auth)
+        run: cargo clippy -p vervet-verify -p vervet-e2e -p vervet-cli --features ssh-auth --all-targets -- -D warnings
+      - name: backend vs a real sshd
+        run: cargo test -p vervet-verify --features ssh-auth --no-fail-fast
+      - name: full pipeline against a real sshd
+        run: cargo test -p vervet-e2e --features ssh-auth --no-fail-fast
+      - name: cli black-box (emulate → store → report)
+        run: cargo test -p vervet-cli --features ssh-auth --no-fail-fast
+

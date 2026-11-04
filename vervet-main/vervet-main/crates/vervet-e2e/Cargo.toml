@@ -1,0 +1,32 @@
+[package]
+name = "vervet-e2e"
+description = "End-to-end test harness: drives the full authorize → engage → emit pipeline against real containerized services."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+# A leaf crate that nothing depends on. It carries no library logic; it exists
+# only to host Docker-backed tests, so it may depend downward on every layer.
+[dependencies]
+vervet-core.workspace = true
+vervet-scope.workspace = true
+vervet-engage.workspace = true
+vervet-technique.workspace = true
+vervet-techniques.workspace = true
+vervet-verify.workspace = true
+# Docker-backed, opt-in: kept off the default build so `cargo test` needs no
+# Docker and the testcontainers stack is never compiled.
+testcontainers = { version = "0.15", optional = true }
+
+[features]
+# Stand up real services and assert the credential-asserting verdicts. Flips the
+# whole verifier seam to real SSH auth and pulls in the container harness.
+ssh-auth = ["dep:testcontainers", "vervet-techniques/ssh-auth", "vervet-verify/ssh-auth"]
+
+[dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+serde_json.workspace = true

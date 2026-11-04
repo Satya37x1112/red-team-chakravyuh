@@ -9,6 +9,8 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     heading: "Overview",
     items: [
       { to: "/", label: "Dashboard", icon: "grid" },
+      { to: "/central", label: "Operations Center", icon: "hub" },
+      { to: "/report", label: "Pentest report", icon: "shield" },
       { to: "/history", label: "Execution history", icon: "history" },
     ],
   },
@@ -27,7 +29,13 @@ const NAV: { heading: string; items: NavItem[] }[] = [
       { to: "/reports", label: "Reports", icon: "file" },
     ],
   },
-  { heading: "Lab", items: [{ to: "/range", label: "Cyber range", icon: "network" }] },
+  {
+    heading: "Lab",
+    items: [
+      { to: "/integrations", label: "Integrations", icon: "layers" },
+      { to: "/range", label: "Cyber range", icon: "network" },
+    ],
+  },
 ];
 
 const TITLES: Record<string, string> = Object.fromEntries(

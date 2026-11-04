@@ -89,6 +89,157 @@ export interface HistoryPoint {
 
 export type MetricMap = Partial<Record<"cpu_percent" | "memory_percent" | "disk_percent" | "process_count", number | null>>;
 
+export interface IntegrationStatus {
+  name: string;
+  title: string;
+  category: "analysis" | "load-test" | "emulation" | "agent" | string;
+  repo: string;
+  available: boolean;
+  reason: string;
+  detail: Record<string, unknown>;
+}
+
+export interface CalderaSample {
+  file: string;
+  operation: string | null;
+}
+
+export interface CalderaStats {
+  total_steps: number;
+  success: number;
+  failed: number;
+  success_rate: number;
+  distinct_techniques: number;
+  distinct_tactics: number;
+  techniques: { name: string; count: number }[];
+  tactics: { name: string; count: number }[];
+}
+
+export interface CalderaStep {
+  operation: string | null;
+  agent: string | null;
+  ability: string | null;
+  technique_id: string | null;
+  technique_name: string | null;
+  tactic: string | null;
+  status: "Success" | "Failed" | string;
+  executor: string | null;
+  platform: string | null;
+  command: string | null;
+}
+
+export interface CalderaAnalysis {
+  reports: Record<string, unknown>[];
+  steps: CalderaStep[];
+  stats: CalderaStats;
+  ai: {
+    status: "ok" | "skipped" | "unavailable" | string;
+    model: string | null;
+    report_markdown: string | null;
+    errors: string[];
+  };
+}
+
+export interface ArtifactRow {
+  id: string;
+  created_at: string;
+  integration: string;
+  kind: string;
+  title: string;
+  summary: string;
+}
+
+export interface ArtifactDetail extends ArtifactRow {
+  payload: Record<string, unknown>;
+}
+
+export interface CentralSummary {
+  telemetry: {
+    available: boolean;
+    source: string;
+    hostname: string | null;
+    os_name: string | null;
+    logged_in_user: string | null;
+    cpu_percent: number | null;
+    memory_percent: number | null;
+    disk_percent: number | null;
+    process_count: number | null;
+    collected_at: string | null;
+  } | null;
+  sessions: { total: number; by_state: Record<string, number> };
+  integrations: { total: number; available: number; items: IntegrationStatus[] };
+  artifacts: { total: number; by_integration: Record<string, number>; recent: ArtifactRow[] };
+}
+
+export interface SmartIssue {
+  severity: string;
+  title: string;
+  evidence: string;
+  attacker_note: string;
+  recommendation: string;
+}
+
+export interface SmartAnalysis {
+  headline: string | null;
+  model: string | null;
+  issue_count: number;
+  severity_counts: Record<string, number>;
+  hosts_scanned: string[];
+  issues: SmartIssue[];
+}
+
+export interface VervetFinding {
+  handle: string;
+  kind: string | null;
+  detail: string | null;
+  target: string | null;
+}
+
+export interface VervetEmulateResult {
+  target: string;
+  technique: string;
+  authority: string;
+  engagement_id: string;
+  receipt: Record<string, unknown>;
+  findings: VervetFinding[];
+  coverage: Record<string, unknown> | null;
+  artifact_id?: string;
+}
+
+export interface ReportFinding {
+  severity: string;
+  title: string;
+  target: string | null;
+  detail: string;
+  technique?: string | null;
+  source: string;
+  at: string;
+}
+
+export interface AttackTechnique {
+  id: string;
+  name: string | null;
+  tactic: string | null;
+  observations: number;
+  sources: string[];
+}
+
+export interface PentestReport {
+  meta: { title: string; generated_at: string; operator: string | null; console_host: string | null };
+  scope: { targets: string[]; telemetry_host: string | null; os_name: string | null };
+  summary: {
+    total_tests: number;
+    tools_used: Record<string, number>;
+    finding_count: number;
+    technique_count: number;
+    severity_breakdown: Record<string, number>;
+  };
+  methodology: { tool: string; status: string; role: string }[];
+  findings: ReportFinding[];
+  attack_coverage: AttackTechnique[];
+  timeline: { at: string; integration: string; kind: string; title: string; summary: string }[];
+}
+
 export interface AnalyticsRow {
   id: string;
   label: string;

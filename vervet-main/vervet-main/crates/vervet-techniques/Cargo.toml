@@ -1,0 +1,29 @@
+[package]
+name = "vervet-techniques"
+description = "Registered ATT&CK emulation techniques — one self-contained file per technique."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+inventory.workspace = true
+vervet-core.workspace = true
+vervet-scope.workspace = true
+vervet-technique.workspace = true
+vervet-verify.workspace = true
+
+[features]
+# Upgrade the SSH spray backend from a service probe to real credential
+# verification (valid/invalid). Propagates to vervet-verify.
+ssh-auth = ["vervet-verify/ssh-auth"]
+
+[dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+serde_json.workspace = true

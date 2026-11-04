@@ -1,0 +1,81 @@
+**Executive Summary**
+
+The MITRE Caldera adversary simulation was conducted to assess the security posture of a controlled environment. The simulation aimed to mimic the tactics, techniques, and procedures (TTPs) of an advanced threat actor. The results indicate that the environment has some vulnerabilities, but overall, the security controls in place are effective in detecting and preventing malicious activities.
+
+**Simulation Overview**
+
+The Caldera simulation was executed using the "aojmqr" agent, which represents a sophisticated threat actor. The simulation consisted of 54 operations, with 28 techniques observed across various categories, including collection, discovery, exfiltration, defense-evasion, and stealth.
+
+The host information is not explicitly provided, but based on the commands executed, it appears that the simulation was conducted on a Windows 10 system.
+
+**MITRE ATT&CK Technique Analysis**
+
+The following table summarizes the observed techniques, their IDs, names, tactical categories, and security impacts:
+
+| Technique ID | Technique Name | Tactical Category | What the Simulation Tested | Security Impact |
+| --- | --- | --- | --- | --- |
+| T1113 | Screen Capture | collection | Capturing a screenshot of the desktop | Potential data exfiltration |
+| T1115 | Clipboard Data | collection | Reading the contents of the clipboard | Potential data exfiltration |
+| T1074.001 | Data Staged: Local Data Staging | collection | Creating a local staging directory | Potential data exfiltration |
+| T1005 | Data from Local System | collection | Finding files on the system | Potential data exfiltration |
+| T1560.001 | Archive Collected Data: Archive via Utility | collection | Compressing a directory | Potential data exfiltration |
+| T1041 | Exfiltration Over C2 Channel | exfiltration | Exfiltrating data via a C2 channel | Potential data exfiltration |
+| T1518.001 | Software Discovery: Security Software Discovery | discovery | Discovering antivirus programs | Potential evasion of security controls |
+| T1016.002 | System Network Configuration Discovery: Wi-Fi Discovery | discovery | Scanning for Wi-Fi networks | Potential reconnaissance |
+| T1040 | Network Sniffing | credential-access | Sniffing network traffic | Potential credential theft |
+| T1562.001 | Impair Defenses: Disable or Modify Tools | defense-evasion | Disabling Windows Defender | Potential evasion of security controls |
+| T1222.001 | File and Directory Permissions Modification: Windows File and Directory Permissions Modification | defense-impairment | Granting full access to a folder | Potential privilege escalation |
+| T1036.003 | Masquerading: Rename Legitimate Utilities | defense-evasion | Renaming system utilities | Potential evasion of security controls |
+| T1070.001 | Indicator Removal on Host: Clear Windows Event Logs | defense-evasion | Clearing Windows event logs | Potential evasion of security controls |
+| T1686 | Disable or Modify System Firewall | defense-impairment | Disabling the Windows Defender Firewall | Potential privilege escalation |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | stealth | Creating hidden files and directories | Potential evasion of security controls |
+| T1112 | Modify Registry | multiple | Changing the PowerShell execution policy | Potential privilege escalation |
+| T1036.007 | Masquerading: Double File Extension | stealth | Creating files with double extensions | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1564.003 | Hide Artifacts: Hidden Window | stealth | Creating a hidden window | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1070 | Indicator Removal on Host | stealth | Removing indicators from the host | Potential evasion of security controls |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | stealth | Creating hidden files and directories | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1218.011 | Signed Binary Proxy Execution: Rundll32 | stealth | Executing a signed binary via Rundll32 | Potential privilege escalation |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | stealth | Creating hidden files and directories | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1564.003 | Hide Artifacts: Hidden Window | stealth | Creating a hidden window | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1070 | Indicator Removal on Host | stealth | Removing indicators from the host | Potential evasion of security controls |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | stealth | Creating hidden files and directories | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.007 | Masquerading: Double File Extension | stealth | Creating files with double extensions | Potential evasion of security controls |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | stealth | Creating hidden files and directories | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system utilities | Potential evasion of security controls |
+| T1036.003 | Masquerading: Rename System Utilities | stealth | Renaming system

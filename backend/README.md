@@ -36,6 +36,25 @@ the full lifecycle (discover → profile → plan → prepare → observe → ad
 analyze → result) over real telemetry, and records that execution is deferred to
 an authorized lab adapter. No traffic, credentials, or implants originate here.
 
+## External tool integrations
+
+`app/integrations/` wires four red-team tools in behind one optional interface
+(`app/integrations/base.py`). Every adapter degrades honestly: if its binary,
+package, key, or config is missing, `status()` reports `available: false` with a
+reason — it never crashes the server, matching the telemetry collector's posture.
+
+- **caldera** (`caldera-ai-project`, pure Python) — parses a MITRE Caldera
+  operation report into ATT&CK technique/tactic coverage + pass/fail stats, then
+  an optional OpenRouter SOC narrative (reuses `OPENROUTER_API_KEY`, never Groq).
+- **locust** (`locust-master`) — the real DDoS load driver. Fail-closed: runs
+  only when `LOCUST_ENABLED=true` and an operator `LOCUST_FILE_PATH` +
+  `LOCUST_TARGET_URL` are set, and only that locustfile against that one target,
+  with users/spawn-rate/duration hard-capped by config.
+- **vervet** (Rust CLI) — read-only `describe` / coverage. Never fires `emulate`
+  (vervet itself refuses it without an Ed25519-signed scope manifest).
+- **pentestgpt** — detects the installed agent and reports how to enable it;
+  engagements stay a deliberate CLI action inside an authorized scope.
+
 ## Key endpoints
 
     GET  /api/health
@@ -45,3 +64,10 @@ an authorized lab adapter. No traffic, credentials, or implants originate here.
     POST /api/attacks/{session_id}/kill
     GET  /api/sessions · /api/sessions/{id} · /api/results/{id}
     WS   /ws
+
+    GET  /api/integrations                         # status of all four adapters
+    GET  /api/integrations/{name}
+    GET  /api/integrations/caldera/samples
+    POST /api/integrations/caldera/analyze  {sample|reports, ai}
+    GET  /api/integrations/vervet/describe
+    POST /api/integrations/locust/run       {users?, spawn_rate?, run_seconds?}  # gated

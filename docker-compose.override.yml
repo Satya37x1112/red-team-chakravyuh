@@ -1,0 +1,12 @@
+# Hybrid dev override (auto-loaded by docker compose).
+#
+# The backend runs NATIVELY on the Windows host so telemetry reads the real
+# machine (a Linux container can't). This override points the dashboard's nginx
+# at host.docker.internal:8077 instead of the backend container, and persists
+# that wiring across frontend rebuilds/restarts.
+#
+# For the all-in-Docker setup instead, delete/rename this file and rebuild.
+services:
+  frontend:
+    volumes:
+      - ./frontend/nginx.hybrid.conf:/etc/nginx/conf.d/default.conf:ro

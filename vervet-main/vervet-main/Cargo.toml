@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vervet-core",
+    "crates/vervet-scope",
+    "crates/vervet-technique",
+    "crates/vervet-techniques",
+    "crates/vervet-verify",
+    "crates/vervet-engage",
+    "crates/vervet-report",
+    "crates/vervet-store",
+    "crates/vervet-cli",
+    "crates/vervet-e2e",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "AGPL-3.0-or-later"
+authors = ["copyleftdev <don@codetestcode.io>"]
+repository = "https://github.com/copyleftdev/vervet"
+homepage = "https://github.com/copyleftdev/vervet"
+readme = "README.md"
+# crates.io keywords must be alphanumeric/hyphen: "att&ck" would be rejected.
+keywords = ["security", "adversary-emulation", "mitre-attack", "ai", "cli"]
+categories = ["command-line-utilities"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+blake3 = "1"
+ed25519-dalek = "2"
+inventory = "0.3"
+# Internal deps carry a version (not just a path) so `cargo publish` can rewrite
+# them to registry deps; the path is used for local/workspace builds.
+vervet-core = { path = "crates/vervet-core", version = "0.1.0" }
+vervet-scope = { path = "crates/vervet-scope", version = "0.1.0" }
+vervet-technique = { path = "crates/vervet-technique", version = "0.1.0" }
+vervet-techniques = { path = "crates/vervet-techniques", version = "0.1.0" }
+vervet-verify = { path = "crates/vervet-verify", version = "0.1.0" }
+vervet-engage = { path = "crates/vervet-engage", version = "0.1.0" }
+vervet-report = { path = "crates/vervet-report", version = "0.1.0" }
+vervet-store = { path = "crates/vervet-store", version = "0.1.0" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

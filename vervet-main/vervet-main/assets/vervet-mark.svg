@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 640 640">
+  <title id="title">vervet abstract geometry mark</title>
+  <desc id="desc">An abstract vector mark built from nested facets, audit-chain nodes, and a signed authorization core.</desc>
+  <defs>
+    <linearGradient id="facet-ember" x1="122" y1="98" x2="512" y2="557" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2c36b"/>
+      <stop offset=".45" stop-color="#b87b4c"/>
+      <stop offset="1" stop-color="#3c3231"/>
+    </linearGradient>
+    <linearGradient id="facet-ink" x1="132" y1="534" x2="489" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#172023"/>
+      <stop offset=".55" stop-color="#244148"/>
+      <stop offset="1" stop-color="#6e9f98"/>
+    </linearGradient>
+    <linearGradient id="core" x1="235" y1="184" x2="402" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8e8bd"/>
+      <stop offset=".5" stop-color="#8fbfb4"/>
+      <stop offset="1" stop-color="#23373b"/>
+    </linearGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#10191b" flood-opacity=".18"/>
+    </filter>
+  </defs>
+
+  <rect width="640" height="640" rx="96" fill="#f5f0e4"/>
+  <g filter="url(#lift)">
+    <path d="M320 58 545 188v264L320 582 95 452V188L320 58Z" fill="#172023"/>
+    <path d="m320 94 193 112v226L320 546 127 432V206L320 94Z" fill="#ede3d0"/>
+
+    <path d="M320 94 513 206 380 251 320 176Z" fill="url(#facet-ember)"/>
+    <path d="M127 206 320 94v82l-60 75Z" fill="#c19a63"/>
+    <path d="m127 206 133 45-21 119-112 62Z" fill="#244148"/>
+    <path d="m513 206-133 45 21 119 112 62Z" fill="#6e9f98"/>
+    <path d="M127 432 239 370l81 176Z" fill="#172023"/>
+    <path d="m513 432-112-62-81 176Z" fill="#3c3231"/>
+    <path d="M239 370h162l-81 176Z" fill="url(#facet-ink)"/>
+
+    <path d="m320 176 60 75-60 58-60-58Z" fill="#f8e8bd"/>
+    <path d="m260 251 60 58-81 61Z" fill="#8fbfb4"/>
+    <path d="m380 251 21 119-81-61Z" fill="#3c3231"/>
+    <path d="m239 370 81-61 81 61-81 176Z" fill="url(#core)"/>
+
+    <path d="M320 176v370M127 206l386 226M513 206 127 432M260 251l141 119M380 251 239 370"
+      fill="none" stroke="#f5f0e4" stroke-opacity=".52" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m320 176 60 75 21 119-81 176-81-176 21-119Z"
+      fill="none" stroke="#172023" stroke-opacity=".7" stroke-width="10" stroke-linejoin="round"/>
+
+    <g fill="#f5f0e4" stroke="#172023" stroke-width="8">
+      <circle cx="320" cy="176" r="18"/>
+      <circle cx="260" cy="251" r="15"/>
+      <circle cx="380" cy="251" r="15"/>
+      <circle cx="239" cy="370" r="15"/>
+      <circle cx="401" cy="370" r="15"/>
+      <circle cx="320" cy="546" r="18"/>
+    </g>
+    <circle cx="320" cy="320" r="34" fill="#172023"/>
+    <path d="M304 320h32M320 304v32" stroke="#f8e8bd" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

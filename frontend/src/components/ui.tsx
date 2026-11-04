@@ -19,6 +19,9 @@ const ICONS: Record<string, string> = {
   arrow: "M7 17L17 7 M8 7h9v9",
   shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   refresh: "M21 12a9 9 0 1 1-2.64-6.36L21 8 M21 3v5h-5",
+  layers: "M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
+  hub: "M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M12 2v8 M12 14v8 M2 12h8 M14 12h8",
+  alert: "M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0z M12 9v4 M12 17h.01",
 };
 
 export function Icon({ name, size = 15, className = "" }: { name: keyof typeof ICONS; size?: number; className?: string }) {
