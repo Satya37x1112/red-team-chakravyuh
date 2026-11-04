@@ -4,32 +4,39 @@ Academic project. An AI agent reads **real telemetry** from an isolated Windows
 target VM, reasons over it with an LLM, and a dashboard shows three clearly
 separated layers: **REAL LAB TELEMETRY**, **AGENT DECISION**, **ANALYSIS**.
 
-## Safety boundary (read this)
-
-This repository contains **no offensive execution code**. It does not open raw
-sockets, generate traffic floods, perform credential stuffing against any
-endpoint, or deploy any persistence / C2 mechanism.
-
-- Every attack module's `execute()` is a bounded **in-memory simulation**: it
-  computes synthetic metrics (object counts, simulated success/failure numbers)
-  from the real telemetry snapshot and writes them to `simulation_metrics`. It
-  opens no socket, sends no traffic, attempts no authentication, deploys no
-  implant, and contacts no remote host — verified by running all three with
-  socket creation disabled.
-- `discover / profile / plan / observe / adapt / analyze` only **read** real
-  telemetry and reason about it. They never attack.
-- The telemetry collector only **reads** system state (the same data Task
-  Manager or `Get-WinEvent` shows). If a value is unavailable it returns
-  `null` / `"unavailable"` — it never fabricates a number.
-
-Run only against a machine you own or are authorized to monitor, on an isolated
-host-only network.
 
 ## Layout
 
     backend/    FastAPI service: telemetry collector, DB, WebSocket, AI engine, module stubs
     frontend/   React + TypeScript + Tailwind dashboard
     docker-compose.yml
+
+    caldera-ai-project-main/  MITRE Caldera report analyzer (integrated)
+    locust-master/            Locust load-test framework (integrated, gated)
+    vervet-main/              Rust signed-emulation CLI (integrated, read-only)
+    PentestGPT-main/          LLM pentest agent (integrated, optional)
+
+## Integrations
+
+Four external red-team tools are wired into the console behind one optional
+adapter interface (`backend/app/integrations/`), surfaced on the dashboard's
+**Integrations** page and under `GET /api/integrations`. Each is optional and
+degrades honestly — a missing toolchain, package, or key shows as "unavailable"
+with a reason instead of breaking anything:
+
+- **CALDERA analyzer** — turns a Caldera operation report into ATT&CK
+  technique/tactic coverage, pass/fail stats, and an AI SOC narrative (via the
+  same OpenRouter key the decision engine uses). Ships with sample reports.
+- **Locust** — the real DDoS load driver behind the DDoS module. Fail-closed:
+  inert until the operator sets `LOCUST_ENABLED=true` plus an authored locustfile
+  and an authorized target; users/rate/duration are hard-capped by config.
+- **vervet** — read-only `describe`/coverage from the signed-emulation CLI; the
+  state-changing `emulate` verb is never invoked from the console.
+- **PentestGPT** — detected if installed; engagements remain a deliberate,
+  scoped CLI action.
+
+Enable any of them by filling the relevant keys in `backend/.env` (see
+`backend/.env.example`). The core console runs fully without any of them.
 
 See `backend/README.md` for setup. For Docker, copy `.env.example` to `.env` and set
 `POSTGRES_PASSWORD` before `docker compose up`.

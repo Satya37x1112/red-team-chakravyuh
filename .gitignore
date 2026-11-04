@@ -1,5 +1,7 @@
 # Python
 backend/.venv/
+backend/.venv-pentestgpt/
+backend/pentestgpt-runs/
 __pycache__/
 *.pyc
 *.db

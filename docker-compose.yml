@@ -19,6 +19,11 @@ services:
     env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg2://chakravyuh:${POSTGRES_PASSWORD}@db:5432/chakravyuh
+      # The CALDERA sample reports live outside the backend build context, so
+      # mount them in (read-only) and point the analyzer at them.
+      CALDERA_REPORT_DIR: /samples/caldera
+    volumes:
+      - ./caldera-ai-project-main/caldera-ai-project-main/data:/samples/caldera:ro
     depends_on:
       db:
         condition: service_healthy
