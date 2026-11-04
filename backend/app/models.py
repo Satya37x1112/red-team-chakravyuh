@@ -139,6 +139,26 @@ class AttackResult(Base):
     analysis: Mapped[dict] = mapped_column(JSON, default=dict)   # ANALYSIS blob
 
 
+class IntegrationArtifact(Base):
+    """One persisted output from an external-tool integration.
+
+    This is the central store for everything the integrations produce — a CALDERA
+    ATT&CK analysis, a Locust load-test result, a vervet coverage/describe, a
+    PentestGPT run summary — so the Operations Center can show it all in one place.
+    `payload` holds the full structured output; `summary` is a one-line digest.
+    """
+
+    __tablename__ = "integration_artifacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    integration: Mapped[str] = mapped_column(String(40), index=True)  # caldera | locust | vervet | pentestgpt
+    kind: Mapped[str] = mapped_column(String(40))  # analysis | load_test | describe | run
+    title: Mapped[str] = mapped_column(String(200), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class SimulationMetric(Base):
     """A single synthetic metric produced by a module's SIMULATION execute().
 

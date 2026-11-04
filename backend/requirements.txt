@@ -10,3 +10,11 @@ pywinrm==0.5.0
 openai==1.57.4
 # Windows-only, installed when the collector runs as a local agent on the target:
 #   pywin32==308
+#
+# --- Optional integrations (install only the ones you want to arm) ---
+# CALDERA analyzer: pure-Python, no extra deps (reuses openai + OpenRouter above).
+# Locust load-test driver (the real DDoS path):
+#   pip install locust==2.32.4
+# vervet: a Rust binary, built separately — `cargo build --release -p vervet-cli`.
+# PentestGPT agent (pulls the git-hosted unified-agent):
+#   pip install -e ../PentestGPT-main/PentestGPT-main/pentestgpt_agent

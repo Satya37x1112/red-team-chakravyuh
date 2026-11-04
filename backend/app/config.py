@@ -38,6 +38,28 @@ class Settings(BaseSettings):
     caldera_url: str = ""           # RAT: base URL of the operator's MITRE Caldera server
     caldera_api_key: str = ""       # RAT: Caldera API key (secret; keep in .env only)
 
+    # ---- External tool integrations (all optional, all degrade gracefully) ----
+    # CALDERA report analyzer. The AI analysis reuses the OpenRouter key above;
+    # caldera_report_dir points at a folder of Caldera operation JSON reports to
+    # offer as samples in the UI (defaults to the vendored sample set).
+    caldera_report_dir: str = ""
+
+    # Locust load-test adapter (the real DDoS driver behind locust_file_path).
+    # Disabled unless locust_enabled is true AND a locustfile + target are set.
+    # Even then it only drives an operator-authored locustfile at an authorized
+    # target, headless, with the bounded limits below.
+    locust_enabled: bool = False
+    locust_target_url: str = ""         # e.g. http://10.0.0.5:8080 (authorized lab host)
+    locust_max_users: int = 50          # hard cap on simulated users
+    locust_max_spawn_rate: int = 10     # hard cap on users spawned per second
+    locust_max_run_seconds: int = 120   # hard cap on run duration
+
+    # vervet signed adversary-emulation CLI (Rust binary). Path or name on PATH.
+    vervet_bin: str = "vervet"
+
+    # PentestGPT agent. Console-script name (from its pyproject) or a full path.
+    pentestgpt_cmd: str = "pentestgpt-agent"
+
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""
         per_kind = {
