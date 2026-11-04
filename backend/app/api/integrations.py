@@ -16,6 +16,7 @@ from ..db import get_db
 from ..integrations import all_status, get_integration
 from ..integrations.caldera import analyze, list_samples, load_sample
 from ..integrations.locust import LocustIntegration
+from ..integrations.pentestgpt import list_runs as pentestgpt_list_runs
 from ..integrations.vervet import VervetIntegration
 from ..models import IntegrationArtifact
 
@@ -34,10 +35,16 @@ def _save_artifact(db: Session, integration: str, kind: str, title: str, summary
 
 @router.get("/artifacts")
 def list_artifacts(integration: str | None = None, limit: int = 50, db: Session = Depends(get_db)) -> list[dict]:
-    """Recent persisted integration outputs, newest first (central store)."""
+    """Recent persisted integration outputs, newest first (central store).
+
+    `integration` may be a single name or a comma-separated list (e.g.
+    "vervet,caldera,pentestgpt").
+    """
     stmt = select(IntegrationArtifact).order_by(IntegrationArtifact.created_at.desc()).limit(max(1, min(limit, 500)))
     if integration:
-        stmt = stmt.where(IntegrationArtifact.integration == integration)
+        names = [n.strip() for n in integration.split(",") if n.strip()]
+        if names:
+            stmt = stmt.where(IntegrationArtifact.integration.in_(names))
     rows = db.scalars(stmt).all()
     return [
         {
@@ -167,6 +174,30 @@ def vervet_emulate(req: VervetEmulateRequest, db: Session = Depends(get_db)) -> 
         db, "vervet", "emulate", f"{req.technique} → {req.target}", summary, result
     )
     return result
+
+
+# ---- pentestgpt ------------------------------------------------------------
+
+@router.post("/pentestgpt/ingest")
+def pentestgpt_ingest(db: Session = Depends(get_db)) -> dict:
+    """Pull PentestGPT CLI run outputs into the central store (so they reach RAT/report)."""
+    runs = pentestgpt_list_runs()
+    existing = db.scalars(
+        select(IntegrationArtifact).where(IntegrationArtifact.integration == "pentestgpt")
+    ).all()
+    seen = {(a.payload or {}).get("run_id") for a in existing}
+    added = 0
+    for r in runs:
+        rid = r.get("run_id")
+        if rid in seen:
+            continue
+        summary = (
+            f"goal: {r.get('goal') or '—'} · target: {r.get('target') or '—'} · "
+            f"{r.get('episodes', 0)} episode(s)"
+        )
+        _save_artifact(db, "pentestgpt", "run", f"PentestGPT run {rid}", summary, r)
+        added += 1
+    return {"runs_found": len(runs), "added": added}
 
 
 # ---- locust ----------------------------------------------------------------

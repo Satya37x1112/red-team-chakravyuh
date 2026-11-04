@@ -65,6 +65,9 @@ export const api = {
   locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
     post("/api/integrations/locust/run", body).then(json<Record<string, unknown>>),
 
+  pentestgptIngest: () =>
+    post("/api/integrations/pentestgpt/ingest").then(json<{ runs_found: number; added: number }>),
+
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),
   artifacts: (integration?: string) =>
