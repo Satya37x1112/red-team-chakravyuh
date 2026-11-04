@@ -359,9 +359,21 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
         )}
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
         {result && (
-          <pre className="max-h-72 overflow-auto rounded border border-line bg-canvas p-3 font-mono text-2xs text-ink">
-            {JSON.stringify(result, null, 2)}
-          </pre>
+          <div className="flex flex-col gap-2">
+            {(() => {
+              const t = result.totals as { requests?: number; failures?: number; rps?: number } | undefined;
+              return t ? (
+                <div className="grid grid-cols-3 gap-2.5">
+                  <StatTile label="Requests" value={Number(t.requests ?? 0)} />
+                  <StatTile label="Req/s" value={Number(t.rps ?? 0)} tone="ok" />
+                  <StatTile label="Failures" value={Number(t.failures ?? 0)} tone={Number(t.failures ?? 0) ? "crit" : "ink"} />
+                </div>
+              ) : null;
+            })()}
+            <pre className="max-h-72 overflow-auto rounded border border-line bg-canvas p-3 font-mono text-2xs text-ink">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
         )}
       </div>
     </Panel>

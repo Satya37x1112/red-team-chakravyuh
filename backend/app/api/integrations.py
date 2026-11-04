@@ -223,14 +223,20 @@ def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(500, f"locust run failed: {exc}") from exc
     p = result.get("params", {})
-    agg = None
-    for row in result.get("stats") or []:
-        if isinstance(row, dict) and row.get("name") in ("Aggregated", "Total", "/"):
-            agg = row
-            break
-    reqs = agg.get("num_requests") if agg else "?"
-    fails = agg.get("num_failures") if agg else "?"
-    summary = f"{p.get('users')} users · {p.get('run_seconds')}s · {reqs} requests, {fails} failures → {p.get('target')}"
+    rows = [r for r in (result.get("stats") or []) if isinstance(r, dict)]
+    agg = next((r for r in rows if r.get("name") in ("Aggregated", "Total")), None)
+    if agg:
+        reqs = agg.get("num_requests", 0)
+        fails = agg.get("num_failures", 0)
+    else:
+        # Locust's --only-summary JSON has no aggregate row — sum the per-endpoint rows.
+        reqs = sum(int(r.get("num_requests") or 0) for r in rows)
+        fails = sum(int(r.get("num_failures") or 0) for r in rows)
+    secs = p.get("run_seconds") or 0
+    rps = round(reqs / secs, 1) if secs else reqs
+    # Expose the totals so the dashboard can show them without re-deriving.
+    result["totals"] = {"requests": reqs, "failures": fails, "rps": rps}
+    summary = f"{p.get('users')} users · {secs}s · {reqs} requests (~{rps}/s), {fails} failures → {p.get('target')}"
     result["artifact_id"] = _save_artifact(db, "locust", "load_test", f"Load test → {p.get('target')}", summary, result)
     return result
 
