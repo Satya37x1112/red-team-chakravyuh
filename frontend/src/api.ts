@@ -1,7 +1,13 @@
 import type {
   AnalyticsRow,
+  ArtifactDetail,
+  ArtifactRow,
+  CalderaAnalysis,
+  CalderaSample,
+  CentralSummary,
   Decision,
   HistoryPoint,
+  IntegrationStatus,
   Kind,
   SessionBrief,
   SessionDetail,
@@ -46,4 +52,17 @@ export const api = {
     ),
   killSwitch: () => post("/api/killswitch").then(json<{ halted: boolean; killed: string[] }>),
   rearm: () => post("/api/killswitch/reset").then(json<{ halted: boolean }>),
+
+  integrations: () => fetch("/api/integrations").then(json<IntegrationStatus[]>),
+  calderaSamples: () => fetch("/api/integrations/caldera/samples").then(json<CalderaSample[]>),
+  calderaAnalyze: (body: { sample?: string; reports?: unknown[]; ai?: boolean }) =>
+    post("/api/integrations/caldera/analyze", body).then(json<CalderaAnalysis>),
+  vervetDescribe: () => fetch("/api/integrations/vervet/describe").then(json<Record<string, unknown>>),
+  locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
+    post("/api/integrations/locust/run", body).then(json<Record<string, unknown>>),
+
+  central: () => fetch("/api/central/summary").then(json<CentralSummary>),
+  artifacts: (integration?: string) =>
+    fetch(`/api/integrations/artifacts${integration ? `?integration=${integration}` : ""}`).then(json<ArtifactRow[]>),
+  artifact: (id: string) => fetch(`/api/integrations/artifacts/${id}`).then(json<ArtifactDetail>),
 };

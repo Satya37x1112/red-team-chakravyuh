@@ -89,6 +89,88 @@ export interface HistoryPoint {
 
 export type MetricMap = Partial<Record<"cpu_percent" | "memory_percent" | "disk_percent" | "process_count", number | null>>;
 
+export interface IntegrationStatus {
+  name: string;
+  title: string;
+  category: "analysis" | "load-test" | "emulation" | "agent" | string;
+  repo: string;
+  available: boolean;
+  reason: string;
+  detail: Record<string, unknown>;
+}
+
+export interface CalderaSample {
+  file: string;
+  operation: string | null;
+}
+
+export interface CalderaStats {
+  total_steps: number;
+  success: number;
+  failed: number;
+  success_rate: number;
+  distinct_techniques: number;
+  distinct_tactics: number;
+  techniques: { name: string; count: number }[];
+  tactics: { name: string; count: number }[];
+}
+
+export interface CalderaStep {
+  operation: string | null;
+  agent: string | null;
+  ability: string | null;
+  technique_id: string | null;
+  technique_name: string | null;
+  tactic: string | null;
+  status: "Success" | "Failed" | string;
+  executor: string | null;
+  platform: string | null;
+  command: string | null;
+}
+
+export interface CalderaAnalysis {
+  reports: Record<string, unknown>[];
+  steps: CalderaStep[];
+  stats: CalderaStats;
+  ai: {
+    status: "ok" | "skipped" | "unavailable" | string;
+    model: string | null;
+    report_markdown: string | null;
+    errors: string[];
+  };
+}
+
+export interface ArtifactRow {
+  id: string;
+  created_at: string;
+  integration: string;
+  kind: string;
+  title: string;
+  summary: string;
+}
+
+export interface ArtifactDetail extends ArtifactRow {
+  payload: Record<string, unknown>;
+}
+
+export interface CentralSummary {
+  telemetry: {
+    available: boolean;
+    source: string;
+    hostname: string | null;
+    os_name: string | null;
+    logged_in_user: string | null;
+    cpu_percent: number | null;
+    memory_percent: number | null;
+    disk_percent: number | null;
+    process_count: number | null;
+    collected_at: string | null;
+  } | null;
+  sessions: { total: number; by_state: Record<string, number> };
+  integrations: { total: number; available: number; items: IntegrationStatus[] };
+  artifacts: { total: number; by_integration: Record<string, number>; recent: ArtifactRow[] };
+}
+
 export interface AnalyticsRow {
   id: string;
   label: string;
