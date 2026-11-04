@@ -141,6 +141,34 @@ def vervet_describe(db: Session = Depends(get_db)) -> dict:
     return doc
 
 
+class VervetEmulateRequest(BaseModel):
+    target: str
+    technique: str = "T1046"
+
+
+@router.post("/vervet/emulate")
+def vervet_emulate(req: VervetEmulateRequest, db: Session = Depends(get_db)) -> dict:
+    """Auto-sign a scope for the target and fire a vervet service-discovery scan."""
+    integ = VervetIntegration()
+    st = integ.status()
+    if not st.available:
+        raise HTTPException(503, st.reason)
+    try:
+        result = integ.emulate(req.target, req.technique)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ports = [f.get("detail") for f in result.get("findings", []) if f.get("detail")]
+    summary = f"{req.technique} vs {req.target}: {len(ports)} observation(s)" + (
+        f" — {', '.join(ports)}" if ports else ""
+    )
+    result["artifact_id"] = _save_artifact(
+        db, "vervet", "emulate", f"{req.technique} → {req.target}", summary, result
+    )
+    return result
+
+
 # ---- locust ----------------------------------------------------------------
 
 class LocustRunRequest(BaseModel):

@@ -56,6 +56,17 @@ class Settings(BaseSettings):
 
     # vervet signed adversary-emulation CLI (Rust binary). Path or name on PATH.
     vervet_bin: str = "vervet"
+    # Ed25519 seed (64 hex chars) the backend uses to sign scope manifests for the
+    # GUI "run scan" action. The authority public key is derived from it. Override
+    # in .env for a real engagement; this dev default keeps the lab self-contained.
+    vervet_scope_seed: str = "1111111111111111111111111111111111111111111111111111111111111111"
+    # Techniques the GUI is allowed to fire. Kept to non-destructive discovery
+    # (T1046 = connect-scan). Credential/exploitation techniques stay CLI-only.
+    vervet_gui_techniques: str = "T1046"
+
+    @property
+    def vervet_gui_technique_list(self) -> list[str]:
+        return [t.strip() for t in self.vervet_gui_techniques.split(",") if t.strip()]
 
     # PentestGPT agent. Console-script name (from its pyproject) or a full path.
     pentestgpt_cmd: str = "pentestgpt-agent"
