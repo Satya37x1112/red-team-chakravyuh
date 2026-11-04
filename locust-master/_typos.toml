@@ -1,0 +1,9 @@
+[default]
+extend-ignore-identifiers-re = [
+    "(?i)mosquitto", # name of https://github.com/eclipse-mosquitto/mosquitto
+]
+
+[files]
+extend-exclude = [
+    "CHANGELOG.md" # generated file
+]

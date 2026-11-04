@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Caldera installation
+caldera/
+
+# Raw reports
+reports/raw/
+
+# AI outputs
+phase6/output/
+
+# PDFs
+output/*.pdf

@@ -1,0 +1,39 @@
+[package]
+name = "vervet-cli"
+description = "The vervet command-line contract: describe, schema, emulate, report, explain."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "vervet"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+vervet-core.workspace = true
+vervet-scope.workspace = true
+vervet-technique.workspace = true
+vervet-techniques.workspace = true
+vervet-engage.workspace = true
+vervet-report.workspace = true
+vervet-store.workspace = true
+# Container harness for the black-box CLI e2e; opt-in with `ssh-auth` so the
+# default build never compiles it.
+testcontainers = { version = "0.15", optional = true }
+
+[features]
+# Real SSH credential verification for the spray (valid/invalid). Off by default
+# so the standard binary stays lean and static. Also enables the Docker-backed
+# end-to-end test that drives the real binary against a live sshd.
+ssh-auth = ["vervet-techniques/ssh-auth", "dep:testcontainers"]
+
+[dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1200 520">
+  <title id="title">vervet GitHub README masthead</title>
+  <desc id="desc">A geometric masthead for vervet showing a signed authorization core, ATT&amp;CK coverage facets, and an evidence chain.</desc>
+  <defs>
+    <linearGradient id="hero-bg" x1="0" y1="0" x2="1200" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7f1e3"/>
+      <stop offset=".58" stop-color="#ebe1cf"/>
+      <stop offset="1" stop-color="#d8c6a8"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="110" y1="70" x2="1090" y2="450" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111b1e"/>
+      <stop offset=".62" stop-color="#17272b"/>
+      <stop offset="1" stop-color="#244148"/>
+    </linearGradient>
+    <linearGradient id="facet-a" x1="713" y1="96" x2="993" y2="424" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2c36b"/>
+      <stop offset=".46" stop-color="#c18453"/>
+      <stop offset="1" stop-color="#3c3231"/>
+    </linearGradient>
+    <linearGradient id="facet-b" x1="710" y1="428" x2="1011" y2="98" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#172023"/>
+      <stop offset=".56" stop-color="#244148"/>
+      <stop offset="1" stop-color="#79aaa0"/>
+    </linearGradient>
+    <linearGradient id="core" x1="805" y1="150" x2="943" y2="376" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8e8bd"/>
+      <stop offset=".53" stop-color="#94bfb4"/>
+      <stop offset="1" stop-color="#23373b"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#10191b" flood-opacity=".28"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="520" rx="42" fill="url(#hero-bg)"/>
+  <path d="M74 96c0-28 22-50 50-50h952c28 0 50 22 50 50v328c0 28-22 50-50 50H124c-28 0-50-22-50-50V96Z" fill="url(#panel)" filter="url(#shadow)"/>
+  <path d="M98 118c0-25 20-45 45-45h914c25 0 45 20 45 45v284c0 25-20 45-45 45H143c-25 0-45-20-45-45V118Z" fill="none" stroke="#f5f0e4" stroke-opacity=".1" stroke-width="2"/>
+
+  <g font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <text x="148" y="150" fill="#8fbfb4" font-size="17" font-weight="700" letter-spacing="3">SIGNED ADVERSARY EMULATION</text>
+    <text x="146" y="235" fill="#f7f1e3" font-size="76" font-weight="800" letter-spacing="-1">vervet</text>
+    <text x="150" y="285" fill="#eadfc9" font-size="25" font-weight="650">AI-native BAS primitives with signed scope.</text>
+    <text x="150" y="330" fill="#b9c9c4" font-size="18">describe -> emulate -> receipt -> report</text>
+    <text x="150" y="360" fill="#b9c9c4" font-size="18">Ed25519 scope, vq1 evidence, blake3-linked audit chain.</text>
+  </g>
+
+  <g font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="700">
+    <rect x="148" y="394" width="126" height="34" rx="17" fill="#f2c36b"/>
+    <text x="171" y="416" fill="#172023">Rust 1.88+</text>
+    <rect x="288" y="394" width="126" height="34" rx="17" fill="#8fbfb4"/>
+    <text x="309" y="416" fill="#172023">vq1 receipts</text>
+    <rect x="428" y="394" width="150" height="34" rx="17" fill="#f5f0e4"/>
+    <text x="449" y="416" fill="#172023">MITRE ATT&amp;CK</text>
+  </g>
+
+  <g transform="translate(690 64)" filter="url(#shadow)">
+    <path d="M210 12 390 116v208L210 428 30 324V116L210 12Z" fill="#0f181a"/>
+    <path d="m210 46 148 86v176l-148 86-148-86V132l148-86Z" fill="#ede3d0"/>
+    <path d="m210 46 148 86-102 34-46-58Z" fill="url(#facet-a)"/>
+    <path d="M62 132 210 46v62l-46 58Z" fill="#c19a63"/>
+    <path d="m62 132 102 34-16 92-86 50Z" fill="#244148"/>
+    <path d="m358 132-102 34 16 92 86 50Z" fill="#79aaa0"/>
+    <path d="m62 308 86-50 62 136Z" fill="#172023"/>
+    <path d="m358 308-86-50-62 136Z" fill="#3c3231"/>
+    <path d="M148 258h124l-62 136Z" fill="url(#facet-b)"/>
+    <path d="m210 108 46 58-46 45-46-45Z" fill="#f8e8bd"/>
+    <path d="m164 166 46 45-62 47Z" fill="#8fbfb4"/>
+    <path d="m256 166 16 92-62-47Z" fill="#3c3231"/>
+    <path d="m148 258 62-47 62 47-62 136Z" fill="url(#core)"/>
+    <path d="M210 108v286M62 132l296 176M358 132 62 308M164 166l108 92M256 166l-108 92"
+      fill="none" stroke="#f5f0e4" stroke-opacity=".5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m210 108 46 58 16 92-62 136-62-136 16-92Z"
+      fill="none" stroke="#172023" stroke-opacity=".72" stroke-width="8" stroke-linejoin="round"/>
+    <g fill="#f5f0e4" stroke="#172023" stroke-width="7">
+      <circle cx="210" cy="108" r="15"/>
+      <circle cx="164" cy="166" r="13"/>
+      <circle cx="256" cy="166" r="13"/>
+      <circle cx="148" cy="258" r="13"/>
+      <circle cx="272" cy="258" r="13"/>
+      <circle cx="210" cy="394" r="15"/>
+    </g>
+    <circle cx="210" cy="220" r="30" fill="#172023"/>
+    <path d="M196 220h28M210 206v28" stroke="#f8e8bd" stroke-width="9" stroke-linecap="round"/>
+  </g>
+
+  <g opacity=".55" stroke="#f2c36b" stroke-width="2" fill="none">
+    <path d="M656 150h-42c-24 0-38 14-38 38v68c0 24-14 38-38 38h-64"/>
+    <path d="M652 370h-76c-26 0-40-14-40-40v-16"/>
+    <circle cx="656" cy="150" r="5" fill="#f2c36b"/>
+    <circle cx="652" cy="370" r="5" fill="#f2c36b"/>
+  </g>
+</svg>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>
+Caldera AI Security Dashboard
+</title>
+
+
+<style>
+
+body{
+
+background:#111827;
+color:white;
+font-family:Arial;
+padding:30px;
+
+}
+
+
+.card{
+
+background:#1f2937;
+padding:20px;
+margin:15px;
+border-radius:10px;
+
+}
+
+
+h1{
+
+color:#38bdf8;
+
+}
+
+
+</style>
+
+
+</head>
+
+
+<body>
+
+
+<h1>
+MITRE Caldera AI Security Analyzer
+</h1>
+
+
+<div class="card">
+
+<h2>
+Simulation Summary
+</h2>
+
+<p>
+Total Events:
+{{total}}
+</p>
+
+
+<p>
+Successful Actions:
+{{success}}
+</p>
+
+
+<p>
+Failed Actions:
+{{failed}}
+</p>
+
+
+</div>
+
+
+
+<div class="card">
+
+
+<h2>
+ATT&CK Techniques Observed
+</h2>
+
+
+{% for tech,count in techniques.items() %}
+
+<p>
+{{tech}} : {{count}}
+</p>
+
+{% endfor %}
+
+
+</div>
+
+
+
+<div class="card">
+
+
+<h2>
+Tactics Covered
+</h2>
+
+
+{% for tactic,count in tactics.items() %}
+
+<p>
+{{tactic}} : {{count}}
+</p>
+
+{% endfor %}
+
+
+</div>
+
+
+
+</body>
+
+</html>

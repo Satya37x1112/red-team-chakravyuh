@@ -1,0 +1,24 @@
+[package]
+name = "vervet-engage"
+description = "Orchestration: authorize a technique through the gate and emit an audited engagement receipt."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+vervet-core.workspace = true
+vervet-scope.workspace = true
+vervet-technique.workspace = true
+
+[dev-dependencies]
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+vervet-techniques.workspace = true

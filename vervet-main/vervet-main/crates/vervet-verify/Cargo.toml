@@ -1,0 +1,26 @@
+[package]
+name = "vervet-verify"
+description = "Auth-verifier seam: pluggable backends that judge an authentication attempt against a service."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde.workspace = true
+# Credential-asserting backend (valid/invalid). Heavyweight (libssh2 + openssl),
+# so it is opt-in: the default build stays a lean static binary.
+ssh2 = { version = "0.9", optional = true }
+# Used only by the feature-gated end-to-end test, kept optional so the default
+# test build never compiles it.
+testcontainers = { version = "0.15", optional = true }
+
+[features]
+# Real SSH password verification + its Docker-backed end-to-end test.
+ssh-auth = ["dep:ssh2", "dep:testcontainers"]
