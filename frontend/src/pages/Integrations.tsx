@@ -453,27 +453,69 @@ function HydraPanel({ status }: { status: IntegrationStatus }) {
           </code>
         )}
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
-        {result && (
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              <StatTile label="Pairs found" value={Number(result.found_count ?? 0)} tone={Number(result.found_count ?? 0) ? "crit" : "ok"} />
-              <StatTile label="Exit code" value={result.timed_out ? "timeout" : String(result.exit_code ?? "?")} />
-              <StatTile label="Tasks" value={String((result.params as { tasks?: number })?.tasks ?? "?")} />
-            </div>
-            {typeof result.message === "string" && (
-              <p className="rounded border border-line bg-canvas px-3 py-2 text-xs text-muted">{result.message}</p>
-            )}
-            {found.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {found.map((f, i) => (
-                  <span key={i} className="rounded border border-crit/30 bg-crit/10 px-2 py-0.5 font-mono text-2xs text-crit">
-                    {f.login}@{f.service}:{f.port} <span className="text-muted">weak creds</span>
+        {result && (() => {
+          const cracked = Number(result.found_count ?? 0) > 0;
+          const made = Number(result.attempts_made ?? 0);
+          const space = Number(result.attempt_space ?? 0);
+          const pct = space ? Math.min(100, Math.round((made / space) * 100)) : cracked ? 100 : 0;
+          const feed = (result.attempt_feed as { n?: number; login?: string; pass_masked?: string }[] | undefined) ?? [];
+          const dur = result.duration_seconds as number | undefined;
+          const hit = found[0];
+          return (
+            <div className="flex flex-col gap-3">
+              <div className={`rounded border px-3 py-2.5 ${cracked ? "border-crit/40 bg-crit/10" : "border-line bg-canvas"}`}>
+                <div className="flex items-center gap-2">
+                  {cracked && <Icon name="key" size={14} />}
+                  <span className={`text-sm font-semibold ${cracked ? "text-crit" : "text-ink"}`}>
+                    {cracked ? "CREDENTIAL CRACKED" : "No valid credentials found"}
                   </span>
-                ))}
+                </div>
+                {cracked && hit && (
+                  <div className="mt-1 font-mono text-xs text-ink">
+                    {hit.login}<span className="text-muted">@{hit.service}:{hit.port}</span>
+                    {result.cracked_at ? <span className="text-muted"> · cracked at attempt #{String(result.cracked_at)}</span> : null}
+                  </div>
+                )}
+                {!cracked && typeof result.message === "string" && (
+                  <p className="mt-1 text-2xs text-muted">{result.message}</p>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <StatTile label="Attempts" value={space ? `${made}/${space}` : made} />
+                <StatTile label="Cracked at" value={result.cracked_at ? `#${String(result.cracked_at)}` : "-"} tone={cracked ? "crit" : "ink"} />
+                <StatTile label="Duration" value={dur != null ? `${dur}s` : "-"} />
+                <StatTile label="Found" value={Number(result.found_count ?? 0)} tone={cracked ? "crit" : "ok"} />
+              </div>
+
+              {space > 0 && (
+                <div className="h-1.5 w-full overflow-hidden rounded bg-raised">
+                  <div className={`h-full ${cracked ? "bg-crit" : "bg-ok"}`} style={{ width: `${pct}%` }} />
+                </div>
+              )}
+
+              {feed.length > 0 && (
+                <div>
+                  <div className="mb-1 text-2xs uppercase tracking-wide text-faint">Attempt feed (passwords masked)</div>
+                  <div className="max-h-48 overflow-auto rounded border border-line bg-canvas p-2 font-mono text-2xs">
+                    {feed.map((a, i) => {
+                      const isHit = cracked && i === feed.length - 1;
+                      return (
+                        <div key={i} className={`flex items-center gap-2 px-1 py-0.5 ${isHit ? "text-crit" : "text-muted"}`}>
+                          <span className="w-9 shrink-0 text-faint">#{a.n ?? i + 1}</span>
+                          <span className={isHit ? "text-crit" : "text-ink"}>{a.login}</span>
+                          <span className="text-faint">:</span>
+                          <span className="tracking-widest">{a.pass_masked}</span>
+                          <span className="ml-auto">{isHit ? "✓ CRACKED" : "✗"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </Panel>
   );

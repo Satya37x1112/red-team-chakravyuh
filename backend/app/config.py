@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     hydra_enabled: bool = False
     hydra_target: str = ""              # authorized lab host/IP, e.g. 192.168.56.20
     hydra_service: str = "ssh"          # hydra service module (ssh, ftp, rdp, …)
+    hydra_port: int = 0                 # non-default service port (0 = the service default)
     hydra_userlist_path: str = ""       # operator-provided username list (one per line)
     hydra_passlist_path: str = ""       # operator-provided password list (one per line)
     hydra_max_tasks: int = 4            # hard cap on parallel connects (hydra -t)

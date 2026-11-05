@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import time
 from typing import Any
 
 from ..config import settings
@@ -33,6 +34,13 @@ from .base import Integration, IntegrationStatus
 _HIT = re.compile(
     r"^\[(?P<port>\d+)\]\[(?P<service>[^\]]+)\]\s+host:\s*(?P<host>\S+)\s+"
     r"login:\s*(?P<login>\S+)\s+password:\s*(?P<password>.*)$"
+)
+
+# hydra -V attempt lines look like:
+#   [ATTEMPT] target 127.0.0.1 - login "labadmin" - pass "Welcome1" - 6 of 24 [child 0] (0/0)
+_ATTEMPT = re.compile(
+    r'\[ATTEMPT\].*?login "(?P<login>[^"]*)" - pass "(?P<pass>[^"]*)"'
+    r'(?:\s*-\s*(?P<n>\d+) of (?P<m>\d+))?'
 )
 
 
@@ -67,6 +75,7 @@ class HydraIntegration(Integration):
             "enabled": settings.hydra_enabled,
             "target": settings.hydra_target or None,
             "service": settings.hydra_service or None,
+            "port": settings.hydra_port or None,
             "userlist": settings.hydra_userlist_path or None,
             "passlist": settings.hydra_passlist_path or None,
             "userlist_count": user_n,
@@ -149,6 +158,11 @@ class HydraIntegration(Integration):
             "-P", settings.hydra_passlist_path,
             "-t", str(t),
             "-f",            # stop after the first valid pair is found
+            "-V",            # verbose: emit one [ATTEMPT] line per guess (for the live feed)
+        ]
+        if settings.hydra_port:
+            cmd += ["-s", str(settings.hydra_port)]   # non-default service port
+        cmd += [
             settings.hydra_target,
             settings.hydra_service,
         ]
@@ -157,6 +171,7 @@ class HydraIntegration(Integration):
         stdout = ""
         stderr = ""
         returncode: int | None = None
+        started = time.monotonic()
         try:
             # hydra has no self-terminating duration flag, so the subprocess
             # timeout is the enforced wall-clock bound; a little slack to flush.
@@ -166,10 +181,13 @@ class HydraIntegration(Integration):
             timed_out = True
             stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
             stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        duration = round(time.monotonic() - started, 2)
 
         combined = stdout + "\n" + stderr
         found: list[dict[str, Any]] = []
         notes: list[str] = []
+        attempts: list[dict[str, Any]] = []   # masked per-guess feed for the UI
+        total_space: int | None = None
         for raw in combined.splitlines():
             line = raw.strip()
             if not line:
@@ -186,8 +204,27 @@ class HydraIntegration(Integration):
                         "password_found": True,
                     }
                 )
-            elif any(k in line for k in ("[ERROR]", "[WARNING]", "invalid reply", "could not connect", "does not support")):
+                continue
+            a = _ATTEMPT.search(line)
+            if a:
+                # The tried password is shown only as its length (dots) — never the
+                # value itself, consistent with never surfacing a cracked secret.
+                pw = a.group("pass") or ""
+                if a.group("m"):
+                    total_space = int(a.group("m"))
+                attempts.append(
+                    {
+                        "n": int(a.group("n")) if a.group("n") else len(attempts) + 1,
+                        "login": a.group("login"),
+                        "pass_masked": "•" * min(len(pw), 16),
+                    }
+                )
+                continue
+            if any(k in line for k in ("[ERROR]", "[WARNING]", "invalid reply", "could not connect", "does not support")):
                 notes.append(line)
+
+        # The guess that matched is the last attempt before hydra stopped (-f).
+        cracked_at = attempts[-1]["n"] if (found and attempts) else None
 
         # Honest, human-readable outcome — especially when 0 found but hydra
         # errored (e.g. a module that can't negotiate with the target), so the
@@ -205,6 +242,7 @@ class HydraIntegration(Integration):
             "params": {
                 "target": settings.hydra_target,
                 "service": settings.hydra_service,
+                "port": settings.hydra_port or None,
                 "tasks": t,
                 "run_seconds": secs,
             },
@@ -214,5 +252,11 @@ class HydraIntegration(Integration):
             "found": found,
             "message": message,
             "notes": notes[-10:],
+            # Visualization payload for the dashboard's brute-force view.
+            "attempts_made": len(attempts),
+            "attempt_space": total_space,
+            "cracked_at": cracked_at,
+            "duration_seconds": duration,
+            "attempt_feed": attempts[-60:],   # last N masked guesses for the live feed
             "stderr_tail": "\n".join(stderr.splitlines()[-20:]) if stderr else "",
         }
