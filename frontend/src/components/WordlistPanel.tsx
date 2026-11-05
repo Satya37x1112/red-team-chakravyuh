@@ -8,6 +8,8 @@ type Metrics = {
   mock_wordlist_preview?: string[];
   mock_wordlist_size?: number;
   mock_wordlist_note?: string;
+  mock_wordlist_confirmed_weak?: string[];
+  mock_wordlist_derived_count?: number;
 };
 
 /** Shows the latest synthetic wordlist the brute-force agent suggested from
@@ -24,6 +26,8 @@ export function WordlistPanel() {
   const users = metrics?.mock_usernames ?? [];
   const pws = metrics?.mock_passwords ?? [];
   const preview = metrics?.mock_wordlist_preview ?? [];
+  const confirmed = metrics?.mock_wordlist_confirmed_weak ?? [];
+  const derived = metrics?.mock_wordlist_derived_count ?? 0;
 
   const downloadTxt = () => {
     const lines = users.flatMap((u) => pws.map((p) => `${u}:${p}`));
@@ -39,7 +43,7 @@ export function WordlistPanel() {
   return (
     <Panel
       title="Suggested wordlist"
-      sub={metrics ? `${metrics.mock_wordlist_size ?? users.length * pws.length} entries · shaped by observed OS and account` : "generated when a session runs"}
+      sub={metrics ? `${metrics.mock_wordlist_size ?? users.length * pws.length} entries · ${derived} telemetry-targeted · ${confirmed.length} confirmed-weak` : "generated when a session runs"}
       actions={
         <span className="flex items-center gap-2">
           {metrics && (
@@ -67,9 +71,18 @@ export function WordlistPanel() {
             <div>
               <div className="mb-1.5 text-2xs uppercase tracking-wide text-muted">Passwords</div>
               <div className="flex flex-wrap gap-1.5">
-                {pws.map((p) => (
-                  <span key={p} className="rounded border border-line bg-raised px-1.5 py-0.5 font-mono text-2xs text-ink">{p}</span>
-                ))}
+                {pws.map((p) => {
+                  const isHit = confirmed.includes(p);
+                  return (
+                    <span
+                      key={p}
+                      title={isHit ? "Confirmed weak — cracked against the authorized lab target" : undefined}
+                      className={`rounded border px-1.5 py-0.5 font-mono text-2xs ${isHit ? "border-crit/50 bg-crit/10 text-crit" : "border-line bg-raised text-ink"}`}
+                    >
+                      {p}{isHit ? " ✓" : ""}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>

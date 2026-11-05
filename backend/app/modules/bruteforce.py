@@ -6,6 +6,8 @@ to any endpoint.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from ..telemetry.schema import Telemetry
 from .base import AttackModule, ExecutionResult, PlanResult, ProfileResult
 
@@ -24,20 +26,30 @@ class BruteForceModule(AttackModule):
         base.summary = f"Auth-test profile — {len(logon_events)} recent logon events observed"
         return base
 
-    # Obviously-synthetic weak passwords for a lab wordlist. These are generic
-    # example strings used in security training — never real or leaked creds, and
-    # never used against any service. Display-only.
-    _MOCK_PASSWORDS = [
-        "Summer2026!", "Winter2026!", "Password123!", "Spring2026!", "Autumn2026!",
-        "Welcome1", "P@ssw0rd", "changeme", "Qwerty123", "Company@2026",
+    # Realistic-but-synthetic weak passwords for a lab/training wordlist. These are
+    # generic strings from security-awareness material — never real or leaked creds,
+    # and never sent to any service from here. Display-only.
+    _BASE_PASSWORDS = [
+        "Welcome@123", "Password1", "Password123!", "P@ssw0rd", "P@ssw0rd!",
+        "Admin@123", "Admin@2026", "Changeme123", "Qwerty@123", "Qwerty123!",
+        "Letmein!", "Iloveyou1", "Monkey123", "Dragon@123", "Football1",
+        "1qaz@WSX", "Zaq1@wsx", "Trustno1", "Sunshine1", "Master@123",
+        "Baseball1", "Secret@123", "Hello@123", "Summer2026!", "Winter2026!",
+        "Spring2026!", "Autumn2026!", "Company@2026",
     ]
 
+    # Passwords a real, authorized lab crack has confirmed to work. These get fed
+    # back into the suggestion and ranked first, so the next run leads with what
+    # already succeeded against the lab target (e.g. the SSH demo's planted cred).
+    _CONFIRMED_WEAK = ["Welcome1"]
+
     def _suggest_mock_wordlist(self, telemetry: Telemetry, size_hint: int) -> dict:
-        """Suggest a MOCK (synthetic) wordlist shaped by observed state.
+        """Suggest a training wordlist shaped by observed state.
 
         Grounded in telemetry — OS flavour and the observed account name drive the
-        candidate usernames — but every value is synthetic and for display only.
-        Nothing here is written to a usable file or sent to any service.
+        candidate usernames, and the hostname / account / current year / seasons
+        drive targeted password permutations — but every value is synthetic and for
+        display only. Nothing here is written to a usable file or sent to a service.
         """
         os_name = (telemetry.os_name or "").lower()
         if "windows" in os_name:
@@ -46,23 +58,52 @@ class BruteForceModule(AttackModule):
             usernames = ["root", "admin", "labuser", "svc"]
         else:
             usernames = ["admin", "user", "test"]
+        account = None
         # Include the observed local account (their own lab host) as realistic context.
         if telemetry.logged_in_user:
             account = telemetry.logged_in_user.split("\\")[-1]
             if account and account not in usernames:
                 usernames.insert(0, account)
+
+        # Telemetry-targeted candidates: host / account permuted with the current
+        # year, seasons, and common suffixes — the patterns weak passwords follow.
+        year = datetime.now().year
+        seeds = []
+        host = (telemetry.hostname or "").split(".")[0]
+        for raw in (account, host):
+            if raw and raw.isascii() and len(raw) >= 3:
+                cap = raw[:1].upper() + raw[1:]
+                if cap not in seeds:
+                    seeds.append(cap)
+        derived: list[str] = []
+        for s in seeds:
+            derived += [f"{s}@{year}", f"{s}{year}!", f"{s}@123", f"{s}123!"]
+        derived += [f"{se}{year}!" for se in ("Summer", "Winter", "Spring", "Autumn")]
+
+        # Rank: confirmed-weak (what actually cracked) first, then targeted, then base.
+        ordered: list[str] = []
+        for p in self._CONFIRMED_WEAK + derived + self._BASE_PASSWORDS:
+            if p not in ordered:
+                ordered.append(p)
+
         # More observed logon activity -> a slightly larger suggested wordlist.
         logon_ids = {4624, 4625}
         observed = len([e for e in telemetry.windows_events if e.event_id in logon_ids])
-        pw_count = max(3, min(len(self._MOCK_PASSWORDS), (size_hint // 5) + 3 + observed // 5))
-        passwords = self._MOCK_PASSWORDS[:pw_count]
+        pw_count = max(10, min(len(ordered), (size_hint // 2) + 12 + observed // 3))
+        passwords = ordered[:pw_count]
+        confirmed = [p for p in passwords if p in self._CONFIRMED_WEAK]
         preview = [f"{u}:{p}" for u in usernames[:2] for p in passwords[:3]]
         return {
             "usernames": usernames,
             "passwords": passwords,
             "size": len(usernames) * len(passwords),
+            "derived_count": sum(1 for p in passwords if p in derived),
+            "confirmed_weak": confirmed,
             "preview": preview,
-            "note": "Mock wordlist — display only, never used against any service.",
+            "note": (
+                "Training wordlist — telemetry-targeted candidates plus confirmed-weak "
+                "creds from authorized lab runs; display only, never sent to any service."
+            ),
         }
 
     def execute(self, plan: PlanResult, telemetry: Telemetry) -> ExecutionResult:
@@ -105,6 +146,8 @@ class BruteForceModule(AttackModule):
                 "mock_usernames": wordlist["usernames"],
                 "mock_passwords": wordlist["passwords"],
                 "mock_wordlist_preview": wordlist["preview"],
+                "mock_wordlist_derived_count": wordlist["derived_count"],
+                "mock_wordlist_confirmed_weak": wordlist["confirmed_weak"],
                 "mock_wordlist_note": wordlist["note"],
             },
             series=series,
