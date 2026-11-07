@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (end of Section 3)
+Last updated: 2026-11-07 (end of Section 3.1 — verification)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **79/79 backend tests pass**; frontend `npm run typecheck` clean.
+Test status at this update: **80 passed, 1 skipped** (skip = live-LLM test, no `OPENROUTER_API_KEY`); frontend `npm run typecheck` clean + `npm run build` succeeds.
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -125,6 +125,23 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 - **Tests executed:** 79 pytest → pass; runtime smoke of `/api/operations/*`; frontend typecheck clean. **Issues found/fixed:** one test wrongly expected a gateway rejection for the no-runnable-module case (it is an honest "no plan" — corrected). **Decisions:** keep legacy `decision.py` for the simulation path; bind AI target to the authorized allowlist; deterministic guardrails override AI feedback. **Remaining:** live-LLM verification, real-tool verification, Section 4 (RAT-related).
 
 ---
+
+### Section 3.1 — Live AI Planner & Safety Verification
+- **Objective:** verify (not extend) the centralized planner, its LLM integration, deterministic safety, kill switch, and frontend; correct only in-scope issues.
+- **Work:** inspected OpenRouter config + LLM client; confirmed `OPENROUTER_API_KEY` is **absent** → live LLM **BLOCKED**; added a guarded live-LLM test (auto-skips) + an offline no-key honesty test; ran full regression + frontend typecheck/build; audited execution isolation (planner imports no subprocess/dispatcher/tool); verified no frontend secret exposure.
+- **Files created:** `backend/tests/test_live_llm.py`, `docs/CLAUDE_SECTION_3_1_VERIFICATION.md`. **Modified:** `docs/CHAKRAVYUH_MASTER_PROGRESS.md`.
+- **Tests executed:** `pytest` → **80 passed, 1 skipped**; `npm run typecheck` clean; `npm run build` success. **Issues:** live LLM unverifiable (no key); frontend rearm button vs token-gated reset (pre-existing, degrades gracefully). **Decisions:** do not fabricate a live AI result; do not weaken safety to pass; leave rearm for owner decision. **Remaining:** live-LLM + real-tool + WinRM-telemetry verification; Section 4.
+
+**Verification distinctions (per §13):**
+| Capability | Status |
+|---|---|
+| Live LLM (OpenRouter) planning | **BLOCKED** (no key) |
+| Mock-LLM planner logic | **MOCK VERIFIED** |
+| Mock-adapter execution | **MOCK VERIFIED** |
+| Real Hydra execution | **IMPLEMENTED BUT UNVERIFIED** |
+| Real Locust execution | **IMPLEMENTED BUT UNVERIFIED** |
+| Real Windows (WinRM) telemetry | **IMPLEMENTED BUT UNVERIFIED** |
+| Frontend (typecheck + build + contract) | **VERIFIED**; live UI interaction **UNVERIFIED** |
 
 ## E. Remaining Work
 
