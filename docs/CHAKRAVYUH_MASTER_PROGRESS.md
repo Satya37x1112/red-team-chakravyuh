@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (end of Section 4 — Credentialed Remote Access / RAT alternative)
+Last updated: 2026-11-07 (Section 4 + security remediation of MEDIUM-1/LOW-1)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **110 passed** (live-LLM test now runs — keys present); frontend `npm run typecheck` clean + `npm run build` succeeds.
+Test status at this update: **118 passed** (live-LLM test runs — keys present); frontend `npm run typecheck` clean + `npm run build` succeeds.
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -159,6 +159,8 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 | API + frontend (typecheck/build) | **MOCK VERIFIED** / built |
 | Live NetExec auth + banner vs real Windows target | **IMPLEMENTED BUT UNVERIFIED** |
 | Real remote execution | **BLOCKED** (needs authorized target + lab creds + go-ahead) |
+
+**Section 4 security remediation (same day) — MOCK VERIFIED:** a read-only security review found MEDIUM-1 (NetExec password on local argv → visible in `/proc/<pid>/cmdline`/`ps`) and LOW-1 (exception text not credential-redacted). Both remediated: the password is now written to a 0600 `/dev/shm` credential file passed as `-p <file>` (no argv exposure; verified against NetExec 1.5.1 source), cleaned up on every path (success/failure/timeout/cancellation), fail-closed on file-creation error; exception messages are credential-redacted. Verified by 8 new tests (argv secrecy, 0600 perms, `/dev/shm` preference, cleanup, failure paths, redaction). `.env` confirmed gitignored + untracked; `.env.example` placeholders only. All execution paths confirmed to pass through the Safety Gateway + D2 operation allowlist; 30s cap enforced server-side (policy + adapter); no regression (118 passed). **Files:** `backend/app/integrations/remote_access.py`, `backend/tests/test_remote_access.py` (+8), `backend/tests/test_operations_api.py` (de-flaked a live-LLM-dependent assertion), docs. Residual: the credential file exists briefly on the Kali box (0600, RAM-backed) — readable only by root, which can read process memory anyway (not a new exposure). Live NetExec still unverified.
 
 ## E. Remaining Work
 

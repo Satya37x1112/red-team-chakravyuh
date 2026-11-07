@@ -2,7 +2,9 @@
 
 **Author:** Implementation engineer (Claude Code, on Kali)
 **Date:** 2026-11-07
-**Status:** Implemented and tested. 110/110 backend tests pass (29 new). Frontend typecheck + build clean. No NetExec was run against any target; no target contacted; no live authentication; no new dependency installed; nothing pushed.
+**Status:** Implemented, tested, and hardened (3.1-style security remediation applied). 118/118 backend tests pass (37 for this module). Frontend typecheck + build clean. No NetExec was run against any target; no target contacted; no live authentication; no new dependency installed; nothing pushed.
+
+> **Update (security remediation, same day):** the MEDIUM-1 argv credential exposure and LOW-1 exception-redaction findings from the Section-4 security review have been remediated — see §4 and §11. The password no longer appears on the `nxc` argv.
 
 > Honesty up front: this module is **mock-verified** only. It is a genuine, integrated, safely-controlled capability — **not** a conventional RAT and **not** an unrestricted shell. Live NetExec/Evil-WinRM execution against a real target is **implemented but unverified**.
 
@@ -59,7 +61,8 @@ Unknown ids are rejected by the Safety Gateway (and again by the adapter). These
 - Credentials come from local config (`REMOTE_ACCESS_USER` / `REMOTE_ACCESS_PASSWORD` in gitignored `.env`).
 - **Never** in an ExecutionPlan, **never** sent to the LLM (the planner only sees module/target/operation), **never** in API responses, frontend state, audit logs, or exception messages.
 - The password is **redacted** from captured NetExec output before anything is stored/returned (`_redact`), and `audit.mask_secrets` redacts credential-shaped keys. Verified by `test_password_never_in_result` and `test_audit_has_no_secret`.
-- **Documented limitation:** the password is passed on the local `nxc` argv, so it is briefly visible in Kali's **own** process list during the call (same class as other Kali CLI tools). It is never sent to the target beyond the authenticated protocol, never to the LLM, never surfaced by the app. The process registry only ever exposes `cmd[0]` / `cmd[:3]` (binary + proto + target — not the password).
+- **Exception redaction (LOW-1):** any non-timeout exception from the subprocess is re-raised as a `RuntimeError` with the password redacted from its text (`test_exception_message_is_credential_redacted`).
+- **No argv exposure (MEDIUM-1 remediated):** the password is **never** on the `nxc` command line. It is written to a short-lived file via `tempfile.mkstemp` (mode **0600**), preferring RAM-backed **`/dev/shm`**, and passed as `-p <file>` — NetExec reads a one-line file as a single-password list (verified against the installed NetExec 1.5.1 source, `connection.py:416`). The plaintext therefore never appears in `/proc/<pid>/cmdline`, `ps`, or the in-memory process registry. The file is **deleted on every path** (success / failure / timeout / cancellation) via `finally` + `_safe_unlink`. **Fail-closed:** if the secure file cannot be created, the run aborts — it never falls back to argv. Verified by `test_password_never_in_argv`, `test_credential_file_is_0600`, `test_credential_file_prefers_dev_shm`, and the cleanup/failure tests.
 - No new credential-management dependency was introduced.
 
 ---
@@ -103,9 +106,9 @@ New page `frontend/src/pages/RemoteAccess.tsx` (route `/remote-access`, nav "Rem
 
 ```
 cd backend && source .venv/bin/activate && python -m pytest tests/ -q
-→ 110 passed, 1 warning in ~12s
+→ 118 passed, 1 warning in ~11s
 ```
-`tests/test_remote_access.py` (29) covers the 22 required areas with mocks (canned NetExec output; no nxc run, no target): adapter init; missing credentials; missing dependency; invalid/unauthorized target; unknown operation; invalid params + **command-injection tokens rejected by schema**; **credential masking** (password absent from result even though NetExec echoed it); schema validation; gateway approval/rejection; kill-switch rejection; registry lifecycle; timeout; adapter failure; **secret-free audit**; planner integration (AI selects an operation id, target bound); analysis (facts vs objective); full feedback loop; **rejected plan never reaches the adapter**; API disabled→423, armed→200 (no secret leak), injection→422.
+`tests/test_remote_access.py` (37, incl. 8 remediation) covers the 22 required areas with mocks (canned NetExec output; no nxc run, no target): adapter init; missing credentials; missing dependency; invalid/unauthorized target; unknown operation; invalid params + **command-injection tokens rejected by schema**; **credential masking** (password absent from result even though NetExec echoed it); schema validation; gateway approval/rejection; kill-switch rejection; registry lifecycle; timeout; adapter failure; **secret-free audit**; planner integration (AI selects an operation id, target bound); analysis (facts vs objective); full feedback loop; **rejected plan never reaches the adapter**; API disabled→423, armed→200 (no secret leak), injection→422.
 
 Runtime smoke (backend reloaded on :8077, nothing armed): `remote_access` available but **not runnable** (disabled); run→`423`; injection→`422`. Fail-closed confirmed.
 
@@ -116,8 +119,9 @@ Two Section-3 tests were updated (not weakened): they previously asserted `rat_r
 ## 11. Known Limitations
 
 - **Mock-verified only.** No live NetExec run, no target contacted, no real auth. Live behaviour is **implemented but unverified**.
-- **Password on local argv** (transient, Kali-side only) — documented in §4.
+- **~~Password on local argv~~** — **REMEDIATED** (secure 0600 `/dev/shm` credential file; no argv exposure). See §4.
 - **No guaranteed remote cancellation** — mitigated by short, read-only, bounded ops (§7).
+- **Residual (LOW):** during the call the credential file exists on the Kali box (0600, RAM-backed, deleted immediately after). Root on the Kali box could read it — but root can read process memory anyway; this is not a new exposure.
 - Operations are intentionally minimal (read-only info/connectivity). No state-changing admin actions by design.
 - Synchronous execution (like the other adapters).
 

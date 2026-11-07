@@ -7,6 +7,8 @@ are tested without executing anything.
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 
 import pytest
@@ -263,3 +265,99 @@ def test_api_armed_runs_via_gateway(armed_remote_access, monkeypatch):
 def test_api_rejects_injection_operation(armed_remote_access):
     r = client.post("/api/integrations/remote_access/run", json={"operation": "whoami; id"})
     assert r.status_code == 422  # schema rejects the unsafe token
+
+
+# ========== MEDIUM-1 / LOW-1 remediation: secure credential file ==========
+
+def _capturing_run(cap, output=_NXC_OK, rc=0):
+    """A fake _run that records the argv + the credential file it was handed."""
+    def fake(self, cmd, timeout=30, cwd=None):
+        cap["cmd"] = list(cmd)
+        i = cmd.index("-p")
+        pwf = cmd[i + 1]
+        cap["pw_file"] = pwf
+        st = os.stat(pwf)
+        cap["mode"] = stat.S_IMODE(st.st_mode)
+        with open(pwf) as fh:
+            cap["content"] = fh.read()
+        return subprocess.CompletedProcess(cmd, rc, output, "")
+    return fake
+
+
+def test_password_never_in_argv(armed_remote_access, monkeypatch):
+    cap = {}
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", _capturing_run(cap))
+    result = RemoteAccessIntegration().run(operation="hostname")
+    # The password is NOT anywhere on the argv...
+    assert "Welcome1" not in " ".join(cap["cmd"])
+    # ...instead `-p` points at a file path, which held the secret during the call.
+    assert cap["pw_file"] == cap["cmd"][cap["cmd"].index("-p") + 1]
+    assert cap["content"].strip() == "Welcome1"
+    assert "Welcome1" not in json.dumps(result)
+
+
+def test_credential_file_prefers_dev_shm(armed_remote_access, monkeypatch):
+    cap = {}
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", _capturing_run(cap))
+    RemoteAccessIntegration().run(operation="connectivity_check")
+    # /dev/shm is RAM-backed; prefer it when available.
+    if os.path.isdir("/dev/shm") and os.access("/dev/shm", os.W_OK):
+        assert cap["pw_file"].startswith("/dev/shm/")
+
+
+def test_credential_file_is_0600(armed_remote_access, monkeypatch):
+    cap = {}
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", _capturing_run(cap))
+    RemoteAccessIntegration().run(operation="whoami")
+    assert cap["mode"] == 0o600
+
+
+def test_credential_file_cleaned_up_on_success(armed_remote_access, monkeypatch):
+    cap = {}
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", _capturing_run(cap))
+    RemoteAccessIntegration().run(operation="whoami")
+    assert not os.path.exists(cap["pw_file"])  # deleted after success
+
+
+def test_credential_file_cleaned_up_on_timeout(armed_remote_access, monkeypatch):
+    seen = {}
+    def fake(self, cmd, timeout=30, cwd=None):
+        seen["pw_file"] = cmd[cmd.index("-p") + 1]
+        raise subprocess.TimeoutExpired(cmd, timeout, output="", stderr="")
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", fake)
+    result = RemoteAccessIntegration().run(operation="whoami")
+    assert result["timed_out"] is True
+    assert not os.path.exists(seen["pw_file"])  # cleaned up on timeout
+
+
+def test_credential_file_cleaned_up_on_failure(armed_remote_access, monkeypatch):
+    seen = {}
+    def fake(self, cmd, timeout=30, cwd=None):
+        seen["pw_file"] = cmd[cmd.index("-p") + 1]
+        raise OSError("boom Welcome1 boom")
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", fake)
+    with pytest.raises(RuntimeError):
+        RemoteAccessIntegration().run(operation="whoami")
+    assert not os.path.exists(seen["pw_file"])  # cleaned up on failure
+
+
+def test_exception_message_is_credential_redacted(armed_remote_access, monkeypatch):
+    def fake(self, cmd, timeout=30, cwd=None):
+        raise ValueError("auth failed for password Welcome1 at host")
+    monkeypatch.setattr(RemoteAccessIntegration, "_run", fake)
+    with pytest.raises(RuntimeError) as ei:
+        RemoteAccessIntegration().run(operation="whoami")
+    assert "Welcome1" not in str(ei.value)
+    assert "«redacted»" in str(ei.value)
+
+
+def test_tempfile_creation_failure_fails_closed(armed_remote_access, monkeypatch):
+    import app.integrations.remote_access as ra
+    monkeypatch.setattr(ra, "_write_secret_file", lambda s: (_ for _ in ()).throw(OSError("no shm Welcome1")))
+    ran = {"n": 0}
+    monkeypatch.setattr(RemoteAccessIntegration, "_run",
+                        lambda self, cmd, timeout=30, cwd=None: ran.__setitem__("n", ran["n"] + 1))
+    with pytest.raises(RuntimeError) as ei:
+        RemoteAccessIntegration().run(operation="whoami")
+    assert ran["n"] == 0  # nxc never invoked -> no argv fallback
+    assert "Welcome1" not in str(ei.value)  # creation-error text redacted too

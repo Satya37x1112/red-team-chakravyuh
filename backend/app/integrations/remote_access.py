@@ -25,13 +25,18 @@ authenticated protocol, never to the LLM, and never surfaced by the app.
 """
 from __future__ import annotations
 
+import logging
+import os
 import re
 import subprocess
+import tempfile
 import time
 from typing import Any
 
 from ..config import settings
 from .base import Integration, IntegrationStatus
+
+log = logging.getLogger(__name__)
 
 # The ONLY operations this module can perform. Each id maps to a fixed projection
 # of a single safe, read-only NetExec authentication+banner call. Benign + bounded.
@@ -60,6 +65,47 @@ def _redact(text: str, *secrets: str) -> str:
         if s:
             out = out.replace(s, "«redacted»")
     return out
+
+
+def _secure_tmpdir() -> str | None:
+    """Prefer /dev/shm (RAM-backed, not persisted to disk) for the credential file."""
+    for d in ("/dev/shm", tempfile.gettempdir()):
+        try:
+            if d and os.path.isdir(d) and os.access(d, os.W_OK):
+                return d
+        except OSError:
+            continue
+    return None
+
+
+def _write_secret_file(secret: str) -> str:
+    """Write `secret` to a fresh 0600 file and return its path. Fail-closed: raises
+    if no secure location is writable (the caller must NOT fall back to argv)."""
+    d = _secure_tmpdir()
+    if d is None:
+        raise RuntimeError("no writable secure temp directory for the credential file")
+    fd, path = tempfile.mkstemp(prefix="rac_", dir=d)  # mkstemp creates the file mode 0600
+    try:
+        os.write(fd, (secret + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    try:
+        os.chmod(path, 0o600)  # belt-and-suspenders in case of a lax umask/override
+    except OSError:
+        pass
+    return path
+
+
+def _safe_unlink(path: str | None) -> None:
+    """Best-effort delete of the credential file. Never raises; never logs the secret."""
+    if not path:
+        return
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.warning("remote_access: could not remove credential file: %s", exc.__class__.__name__)
 
 
 class RemoteAccessIntegration(Integration):
@@ -123,31 +169,48 @@ class RemoteAccessIntegration(Integration):
         user = settings.remote_access_user
         pw = settings.remote_access_password
 
-        # FIXED argv — a read-only authenticated banner query. No -x, no command
-        # string, no shell. Every operation id uses this one safe call and only
-        # differs in how the (redacted) output is projected.
-        cmd = [self._which(settings.remote_access_bin) or settings.remote_access_bin,
-               settings.remote_access_protocol, settings.remote_access_target,
-               "-u", user, "-p", pw]
-        if settings.remote_access_domain:
-            cmd += ["-d", settings.remote_access_domain]
-
-        started = time.monotonic()
-        timed_out = False
-        stdout = stderr = ""
-        returncode: int | None = None
+        # MEDIUM-1 remediation: write the password to a short-lived 0600 file
+        # (preferring RAM-backed /dev/shm) and pass it as `-p <file>`. NetExec reads
+        # a file as a one-password list, so the plaintext NEVER appears on the argv
+        # (hence not in /proc/<pid>/cmdline, ps, or the process registry). Fail-closed:
+        # if the file can't be created we abort — never fall back to argv.
+        pw_file: str | None = None
         try:
-            proc = self._run(cmd, timeout=secs)
-            stdout, stderr, returncode = proc.stdout, proc.stderr, proc.returncode
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-            stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        duration = round(time.monotonic() - started, 2)
+            try:
+                pw_file = _write_secret_file(pw)
+            except Exception as exc:  # noqa: BLE001 - redact; never leak the secret
+                raise RuntimeError(f"could not prepare secure credential file: {_redact(str(exc), pw)}")
 
-        # Redact the password from anything we keep BEFORE parsing/returning.
-        combined = _redact(stdout + "\n" + stderr, pw)
-        return self._project(operation, combined, timed_out, returncode, duration)
+            # FIXED argv — a read-only authenticated banner query. No -x, no command
+            # string, no shell. argv carries only the credential-file PATH, not the secret.
+            cmd = [self._which(settings.remote_access_bin) or settings.remote_access_bin,
+                   settings.remote_access_protocol, settings.remote_access_target,
+                   "-u", user, "-p", pw_file]
+            if settings.remote_access_domain:
+                cmd += ["-d", settings.remote_access_domain]
+
+            started = time.monotonic()
+            timed_out = False
+            stdout = stderr = ""
+            returncode: int | None = None
+            try:
+                proc = self._run(cmd, timeout=secs)
+                stdout, stderr, returncode = proc.stdout, proc.stderr, proc.returncode
+            except subprocess.TimeoutExpired as exc:
+                timed_out = True
+                stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+                stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            except Exception as exc:  # LOW-1: redact the password from any exception text
+                raise RuntimeError(_redact(f"{type(exc).__name__}: {exc}", pw)) from None
+            duration = round(time.monotonic() - started, 2)
+
+            # NetExec still echoes the password in its success line, so redact the
+            # captured output before parsing/returning, as before.
+            combined = _redact(stdout + "\n" + stderr, pw)
+            return self._project(operation, combined, timed_out, returncode, duration)
+        finally:
+            # Cleanup on EVERY path: success, failure, timeout, or cancellation.
+            _safe_unlink(pw_file)
 
     def _project(self, operation: str, text: str, timed_out: bool, rc: int | None, duration: float) -> dict[str, Any]:
         auth_ok = bool(_AUTH_OK.search(text))

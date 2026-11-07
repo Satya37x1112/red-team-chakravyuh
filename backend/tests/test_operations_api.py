@@ -18,8 +18,11 @@ def test_plan_preview_unavailable_when_nothing_armed():
     assert body["telemetry_scope"] in ("unavailable", "kali_host", "windows_target")
 
 
-def test_plan_preview_armed_is_fallback_and_would_be_approved(armed_bruteforce):
-    # No OpenRouter key in tests -> the default LLM is unavailable -> honest fallback.
+def test_plan_preview_armed_is_fallback_and_would_be_approved(armed_bruteforce, monkeypatch):
+    # Force the no-key path deterministically (a live key in .env would otherwise
+    # make this depend on the live model). No key -> honest fallback, no network.
+    from app.config import settings
+    monkeypatch.setattr(settings, "openrouter_api_key", "")
     r = client.post("/api/operations/plan", json={"objective": "test", "module_hint": "bruteforce"})
     assert r.status_code == 200
     body = r.json()
