@@ -9,6 +9,9 @@ import type {
   HistoryPoint,
   IntegrationStatus,
   Kind,
+  OperationDetail,
+  OperationPlanPreview,
+  OperationSummary,
   PentestReport,
   SessionBrief,
   SessionDetail,
@@ -70,6 +73,14 @@ export const api = {
 
   pentestgptIngest: () =>
     post("/api/integrations/pentestgpt/ingest").then(json<{ runs_found: number; added: number }>),
+
+  // Section 3: centralized AI planner / operations
+  operationPlan: (body: { objective: string; module_hint?: string }) =>
+    post("/api/operations/plan", body).then(json<OperationPlanPreview>),
+  startOperation: (body: { objective: string; module_hint?: string; max_iterations?: number }) =>
+    post("/api/operations", body).then(json<OperationDetail>),
+  listOperations: () => fetch("/api/operations").then(json<OperationSummary[]>),
+  getOperation: (id: string) => fetch(`/api/operations/${id}`).then(json<OperationDetail>),
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),

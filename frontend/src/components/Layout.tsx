@@ -25,6 +25,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
   {
     heading: "Agent",
     items: [
+      { to: "/planner", label: "AI Planner", icon: "bot" },
       { to: "/agent", label: "Activity", icon: "bot" },
       { to: "/reports", label: "Reports", icon: "file" },
     ],

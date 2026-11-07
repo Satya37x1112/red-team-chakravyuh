@@ -180,6 +180,59 @@ class AuditRecord(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)  # already secret-masked
 
 
+class Operation(Base):
+    """One AI-planned operation: a user objective driven through the centralized
+    planner + feedback loop (Section 3). Each iteration is an OperationIteration.
+    No secret is stored here (summaries are secret-masked)."""
+
+    __tablename__ = "operations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    objective: Mapped[str] = mapped_column(Text, default="")
+    scenario_id: Mapped[str] = mapped_column(String(120), index=True)
+    module_hint: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="RUNNING")  # RUNNING|COMPLETED|STOPPED|FAILED
+    final_recommendation: Mapped[str | None] = mapped_column(String(20), nullable=True)  # CONTINUE|MODIFY|STOP
+    iterations: Mapped[int] = mapped_column(Integer, default=0)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class OperationIteration(Base):
+    """One planning→validation→gateway→execution→analysis→feedback cycle.
+
+    `ai_output`, `gateway_decision`, `analysis`, and `result_summary` are
+    secret-masked before persistence. This is the reconstructable audit trail of
+    what the AI proposed, what the deterministic gateway decided, what actually
+    ran, and what the feedback engine recommended."""
+
+    __tablename__ = "operation_iterations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    operation_id: Mapped[str] = mapped_column(ForeignKey("operations.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    index: Mapped[int] = mapped_column(Integer, default=0)
+
+    plan_source: Mapped[str] = mapped_column(String(20), default="none")  # ai|system(fallback)|none
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    ai_output: Mapped[dict] = mapped_column(JSON, default=dict)          # masked proposed plan/raw
+
+    validation_ok: Mapped[bool] = mapped_column(default=False)
+    validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gateway_decision: Mapped[dict] = mapped_column(JSON, default=dict)   # masked
+
+    execution_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    execution_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    result_summary: Mapped[str] = mapped_column(Text, default="")        # masked
+
+    analysis: Mapped[dict] = mapped_column(JSON, default=dict)           # measured_facts + interpretation
+    feedback_action: Mapped[str | None] = mapped_column(String(20), nullable=True)  # CONTINUE|MODIFY|STOP
+    feedback_reasoning: Mapped[str] = mapped_column(Text, default="")
+
+
 class SimulationMetric(Base):
     """A single synthetic metric produced by a module's SIMULATION execute().
 

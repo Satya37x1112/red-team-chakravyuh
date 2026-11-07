@@ -102,6 +102,15 @@ class Settings(BaseSettings):
     # (there is no unauthenticated reset). Set this in .env to enable re-arming.
     safety_admin_token: str = ""
 
+    # ---- Section 3: centralized AI planner + feedback loop ----
+    # Deterministic cap on feedback iterations per operation (prevents infinite
+    # execution loops; the AI cannot raise this).
+    ai_max_feedback_iterations: int = 3
+    # Stop an operation after this many consecutive failed/timed-out executions.
+    ai_consecutive_failure_stop: int = 2
+    # Prompt-contract version recorded in every planning/analysis audit record.
+    ai_prompt_version: str = "chakravyuh-planner-v1"
+
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""
         per_kind = {

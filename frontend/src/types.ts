@@ -257,3 +257,66 @@ export interface AnalyticsRow {
   deltas: MetricMap | null;
   anomalies: { category: string | null; score: number | null; message: string }[];
 }
+
+// --- Section 3: centralized AI planner / operations ---
+export interface OperationGatewayDecision {
+  approved: boolean;
+  rejected?: boolean;
+  reason: string;
+  policy_id?: string;
+  execution_id?: string | null;
+  module?: string;
+  target?: string;
+  adapter?: string | null;
+  validated_parameters?: Record<string, number>;
+  timestamp?: string;
+}
+
+export interface OperationPlanPreview {
+  planning_status: "ai" | "fallback" | "unavailable";
+  model: string | null;
+  prompt_version: string;
+  reasoning: string;
+  runnable_modules: string[];
+  telemetry_scope: string;
+  plan: Record<string, unknown> | null;
+  gateway_decision: OperationGatewayDecision | null;
+}
+
+export interface OperationStep {
+  index: number;
+  plan_source: "ai" | "system" | "none";
+  model: string | null;
+  prompt_version: string | null;
+  ai_output: Record<string, unknown>;
+  validation_ok: boolean;
+  validation_error: string | null;
+  gateway_decision: OperationGatewayDecision | Record<string, never>;
+  execution_id: string | null;
+  execution_state: string | null;
+  result_summary: string;
+  analysis: {
+    measured_facts?: string[];
+    interpretation?: string;
+    interpretation_source?: string;
+    objective_met?: boolean;
+  } & Record<string, unknown>;
+  feedback_action: "CONTINUE" | "MODIFY" | "STOP" | null;
+  feedback_reasoning: string;
+}
+
+export interface OperationSummary {
+  id: string;
+  objective: string;
+  scenario_id: string;
+  status: string;
+  final_recommendation: string | null;
+  iterations: number;
+  created_at: string;
+}
+
+export interface OperationDetail extends OperationSummary {
+  module_hint: string | null;
+  ended_at: string | null;
+  steps: OperationStep[];
+}

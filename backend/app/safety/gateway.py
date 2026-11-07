@@ -91,8 +91,12 @@ def _reject(plan: ExecutionPlan, reason: str) -> GatewayDecision:
     )
 
 
-def evaluate(plan: ExecutionPlan) -> GatewayDecision:
-    """Evaluate a plan and, if approved, create its APPROVED registry record."""
+def evaluate(plan: ExecutionPlan, *, dry_run: bool = False) -> GatewayDecision:
+    """Evaluate a plan and, if approved, create its APPROVED registry record.
+
+    dry_run=True runs every authorization check but creates NO registry record
+    (execution_id stays None) — for a safe plan preview that cannot be executed.
+    """
     policy_id = f"{POLICY_VERSION}:{plan.module.value}"
     try:
         # A. operational state / kill switch
@@ -120,6 +124,16 @@ def evaluate(plan: ExecutionPlan) -> GatewayDecision:
 
         # F. clamp parameters DOWN to configured caps
         validated = policy.clamp_params(plan.module, plan.params, plan.requested_duration_seconds)
+
+        # Dry run: all checks passed; report approval WITHOUT reserving a record.
+        if dry_run:
+            if registry.active_count() >= policy.max_concurrent_executions():
+                return _reject(plan, "Concurrency limit reached; too many active executions.")
+            return GatewayDecision(
+                approved=True, reason="Plan would be approved (dry run).", policy_id=policy_id,
+                timestamp=_now_iso(), module=plan.module.value, target=plan.requested_target,
+                execution_id=None, adapter=_ADAPTER_NAME[plan.module], validated_parameters=validated,
+            )
 
         # E+create atomically: concurrency check and record creation under one lock
         # so simultaneous requests cannot both bypass the concurrency limit.

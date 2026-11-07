@@ -12,6 +12,7 @@ import { Reports } from "./pages/Reports";
 import { Range } from "./pages/Range";
 import { Integrations } from "./pages/Integrations";
 import { OperationsCenter } from "./pages/OperationsCenter";
+import { AIPlanner } from "./pages/AIPlanner";
 import { Report as PentestReport } from "./pages/Report";
 import type { AnalyticsRow } from "./types";
 
@@ -132,6 +133,7 @@ export default function App() {
           <Route path="/ddos" element={<Operation kind="ddos" />} />
           <Route path="/bruteforce" element={<Operation kind="bruteforce" />} />
           <Route path="/rat" element={<Operation kind="ratuba" />} />
+          <Route path="/planner" element={<AIPlanner />} />
           <Route path="/agent" element={<AgentActivity />} />
           <Route path="/history" element={<History />} />
           <Route path="/reports" element={<Reports />} />

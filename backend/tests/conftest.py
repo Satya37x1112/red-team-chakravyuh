@@ -18,6 +18,7 @@ _WATCHED = [
     "locust_enabled", "locust_target_url", "locust_max_users", "locust_max_spawn_rate",
     "locust_max_run_seconds", "safety_target_allowlist", "safety_max_concurrent_executions",
     "safety_admin_token", "killswitch_grace_seconds",
+    "ai_max_feedback_iterations", "ai_consecutive_failure_stop", "ai_prompt_version",
 ]
 
 
