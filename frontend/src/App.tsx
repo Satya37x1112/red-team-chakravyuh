@@ -14,6 +14,7 @@ import { Integrations } from "./pages/Integrations";
 import { OperationsCenter } from "./pages/OperationsCenter";
 import { AIPlanner } from "./pages/AIPlanner";
 import { RemoteAccess } from "./pages/RemoteAccess";
+import { TargetRecon } from "./pages/TargetRecon";
 import { Report as PentestReport } from "./pages/Report";
 import type { AnalyticsRow } from "./types";
 
@@ -135,6 +136,7 @@ export default function App() {
           <Route path="/bruteforce" element={<Operation kind="bruteforce" />} />
           <Route path="/rat" element={<Operation kind="ratuba" />} />
           <Route path="/remote-access" element={<RemoteAccess />} />
+          <Route path="/recon" element={<TargetRecon />} />
           <Route path="/planner" element={<AIPlanner />} />
           <Route path="/agent" element={<AgentActivity />} />
           <Route path="/history" element={<History />} />

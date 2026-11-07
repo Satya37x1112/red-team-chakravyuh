@@ -10,13 +10,33 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./dev.db"
 
     # Telemetry
-    telemetry_source: str = "none"  # local | winrm | none
+    telemetry_source: str = "none"  # local | winrm | blackbox | none
     winrm_endpoint: str = ""
     winrm_port: int = 5985
     winrm_user: str = ""
     winrm_password: str = ""
     winrm_transport: str = "ntlm"
     poll_interval: float = 5.0
+
+    # Blackbox (agentless, IP-only) telemetry: a network probe run FROM Kali — no
+    # credentials and NOTHING installed on the target. It observes reachability,
+    # which TCP ports are open, latency, and HTTP banners. Honest: it cannot see
+    # inside the host (CPU/RAM stay unavailable). Authorized lab target only.
+    blackbox_target: str = ""       # target host/IP to probe (authorized lab only)
+    blackbox_ports: str = "80,443,445,3389,5985,139,135,22,8080,3306,1433,21,23"
+    blackbox_timeout_seconds: float = 2.0   # per-port connect timeout
+    blackbox_http: bool = True      # also fetch HTTP(S) status/Server banner where open
+
+    @property
+    def blackbox_port_list(self) -> list[int]:
+        out: list[int] = []
+        for tok in self.blackbox_ports.split(","):
+            tok = tok.strip()
+            if tok.isdigit():
+                p = int(tok)
+                if 1 <= p <= 65535 and p not in out:
+                    out.append(p)
+        return out[:64]  # hard cap on how many ports a single probe may touch
 
     # AI engine — all LLM calls route through OpenRouter's OpenAI-compatible API.
     openrouter_api_key: str = ""

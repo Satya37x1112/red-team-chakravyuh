@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (Section 4 + security remediation of MEDIUM-1/LOW-1)
+Last updated: 2026-11-07 (Stage 5.1 — read-only architecture integration audit)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **118 passed** (live-LLM test runs — keys present); frontend `npm run typecheck` clean + `npm run build` succeeds.
+Test status at this update: **125 passed, 0 failed, 0 skipped, 1 warning** (incl. 7 uncommitted Stage-5 blackbox-telemetry tests); frontend `npm run typecheck` clean + `npm run build` succeeds (71 modules).
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -161,6 +161,13 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 | Real remote execution | **BLOCKED** (needs authorized target + lab creds + go-ahead) |
 
 **Section 4 security remediation (same day) — MOCK VERIFIED:** a read-only security review found MEDIUM-1 (NetExec password on local argv → visible in `/proc/<pid>/cmdline`/`ps`) and LOW-1 (exception text not credential-redacted). Both remediated: the password is now written to a 0600 `/dev/shm` credential file passed as `-p <file>` (no argv exposure; verified against NetExec 1.5.1 source), cleaned up on every path (success/failure/timeout/cancellation), fail-closed on file-creation error; exception messages are credential-redacted. Verified by 8 new tests (argv secrecy, 0600 perms, `/dev/shm` preference, cleanup, failure paths, redaction). `.env` confirmed gitignored + untracked; `.env.example` placeholders only. All execution paths confirmed to pass through the Safety Gateway + D2 operation allowlist; 30s cap enforced server-side (policy + adapter); no regression (118 passed). **Files:** `backend/app/integrations/remote_access.py`, `backend/tests/test_remote_access.py` (+8), `backend/tests/test_operations_api.py` (de-flaked a live-LLM-dependent assertion), docs. Residual: the credential file exists briefly on the Kali box (0600, RAM-backed) — readable only by root, which can read process memory anyway (not a new exposure). Live NetExec still unverified.
+
+### Stage 5.1 — Final Architecture Integration Audit (read-only)
+- **Objective:** evidence-based, read-only audit of the fully-integrated Sections 1–4 pipeline; no source changes, no commits, no target contact.
+- **Work:** traced the complete `Objective → Context → Planner → Schema → Gateway → Registry → Dispatcher → Adapter → Analysis → Feedback → Audit` flow in code; verified all three modules share the centralized architecture; confirmed **no Gateway bypass** (every dispatch route calls `evaluate()`; `run_execution` requires `APPROVED`); confirmed the kill switch covers all three managed adapters (process groups); confirmed the planner is a single tool-isolated `generate_plan`; ran the full backend suite + frontend checks; performed a full security sweep.
+- **Files created:** `docs/CLAUDE_STAGE_5_1_ARCHITECTURE_AUDIT.md`. **Modified:** `docs/CHAKRAVYUH_MASTER_PROGRESS.md`. (No application source changed.)
+- **Results:** backend **125 passed, 0 failed, 0 skipped, 1 warning**; frontend typecheck + build clean. **Security:** 0 CRITICAL/HIGH/MEDIUM open (the Section-4 argv MEDIUM was already remediated); LOW: brief RAM-backed 0600 cred file (accepted), rearm token wiring (owner decision); `.env` untracked, no secrets in tree, no argv secrets. **Component statuses:** Hydra / Locust / Remote-Access / Gateway / Kill-switch / Centralized-AI = **VERIFIED BY CODE + TESTS**; Frontend = **VERIFIED BY CODE ONLY**.
+- **Auditor conclusions:** all three modules genuinely share the centralized architecture; **no Gateway bypass**; kill switch covers all managed integrations; AI planner genuinely centralized. **Live-unverified:** real Hydra/Locust/NetExec/WinRM against a target (NOT VERIFIED), paid-model AI (BLOCKED — credits). **Note:** uncommitted Stage-5 blackbox/IP-only telemetry + Target Recon page present in the tree (7 tests pass), outside the 1–4 audit scope.
 
 ## E. Remaining Work
 

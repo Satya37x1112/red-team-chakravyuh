@@ -60,9 +60,13 @@ def _telemetry_view() -> dict[str, Any]:
         scope, note = "windows_target", "Remote Windows target telemetry over authorized WinRM."
     elif snap.source == "local":
         scope, note = "kali_host", "Kali ATTACKER host telemetry (psutil) — NOT the Windows target."
+    elif snap.source == "blackbox":
+        scope = "windows_target_external"
+        note = ("External network probe of the target (IP only, no credentials, nothing installed). "
+                "Host internals (CPU/RAM) are NOT visible — only reachability, open ports and banners.")
     else:
         scope, note = "unavailable", "Unrecognised telemetry source; treating as unavailable."
-    return {
+    view = {
         "scope": scope,
         "available": scope != "unavailable",
         "source": snap.source,
@@ -76,6 +80,15 @@ def _telemetry_view() -> dict[str, Any]:
             "process_count": snap.process_count,
         },
     }
+    if snap.network is not None:
+        view["network"] = {
+            "target": snap.network.target,
+            "reachable": snap.network.reachable,
+            "latency_ms": snap.network.latency_ms,
+            "open_ports": snap.network.open_ports,
+            "http_status": snap.network.http_status,
+        }
+    return view
 
 
 def _modules_view() -> list[dict[str, Any]]:

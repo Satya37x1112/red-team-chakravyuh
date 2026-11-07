@@ -22,6 +22,8 @@ from ..config import settings
 from .schema import (
     NetworkConnection,
     NetworkInterface,
+    NetworkProbe,
+    PortState,
     ProcessInfo,
     Telemetry,
     WindowsEvent,
@@ -175,6 +177,109 @@ $mem = if ($os.TotalVisibleMemorySize) {
         return _telemetry_from_ps(raw)
 
 
+# --- blackbox (agentless, IP-only) telemetry ---------------------------------
+
+# Well-known TCP services for labelling probed ports (display only).
+_WELL_KNOWN = {
+    21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns", 80: "http",
+    110: "pop3", 135: "msrpc", 139: "netbios-ssn", 143: "imap", 443: "https",
+    445: "smb", 1433: "mssql", 3306: "mysql", 3389: "rdp", 5432: "postgresql",
+    5985: "winrm", 5986: "winrm-ssl", 8080: "http-alt", 8443: "https-alt",
+}
+
+
+def _probe_port(host: str, port: int, timeout: float) -> tuple[bool, float | None, str]:
+    """TCP-connect one port. Returns (open, latency_ms, note). No data is sent."""
+    import socket
+    import time
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    start = time.monotonic()
+    try:
+        s.connect((host, port))
+        return True, round((time.monotonic() - start) * 1000, 1), "open"
+    except ConnectionRefusedError:
+        return False, round((time.monotonic() - start) * 1000, 1), "refused"
+    except (OSError, Exception):  # timeout / filtered / unreachable
+        return False, None, "no-response"
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def _http_probe(host: str, port: int, https: bool, timeout: float) -> tuple[int | None, str | None]:
+    """Best-effort HTTP(S) HEAD-like GET for status + Server banner. Honest on failure."""
+    import urllib.error
+    import urllib.request
+
+    scheme = "https" if https else "http"
+    url = f"{scheme}://{host}:{port}/"
+    ctx = None
+    if https:
+        import ssl
+        ctx = ssl._create_unverified_context()  # lab target may have a self-signed cert
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "chakravyuh-probe"})
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:  # noqa: S310
+            return resp.status, resp.headers.get("Server")
+    except urllib.error.HTTPError as exc:
+        return exc.code, (exc.headers.get("Server") if exc.headers else None)
+    except Exception:
+        return None, None
+
+
+class BlackboxSource(TelemetrySource):
+    """Agentless external probe of the target from Kali — IP only, no credentials,
+    nothing installed on the target. Reports reachability / open ports / latency /
+    HTTP banner. It CANNOT see inside the host, so CPU/RAM stay unavailable."""
+
+    name = "blackbox"
+
+    def collect(self) -> Telemetry:
+        from datetime import datetime, timezone
+
+        target = settings.blackbox_target.strip()
+        if not target:
+            return Telemetry.unavailable("blackbox", "BLACKBOX_TARGET not configured (set the lab IP).")
+        timeout = max(0.2, min(settings.blackbox_timeout_seconds, 10.0))
+        ports = settings.blackbox_port_list
+
+        probe = NetworkProbe(target=target, probed_at=datetime.now(timezone.utc).isoformat())
+        latencies: list[float] = []
+        host_responded = False
+        for port in ports:
+            is_open, latency, note = _probe_port(target, port, timeout)
+            if note in ("open", "refused"):
+                host_responded = True
+            if latency is not None:
+                latencies.append(latency)
+            if is_open:
+                probe.open_ports.append(port)
+            probe.ports.append(PortState(
+                port=port, open=is_open, service=_WELL_KNOWN.get(port), latency_ms=latency,
+            ))
+        probe.reachable = host_responded
+        probe.latency_ms = round(min(latencies), 1) if latencies else None
+
+        # HTTP banner on the first open web port, if any.
+        if settings.blackbox_http:
+            for p in (80, 8080):
+                if p in probe.open_ports:
+                    probe.http_status, probe.http_server = _http_probe(target, p, False, timeout)
+                    break
+            if probe.http_status is None and 443 in probe.open_ports:
+                probe.http_status, probe.http_server = _http_probe(target, 443, True, timeout)
+
+        t = Telemetry(source="blackbox", available=True)
+        t.hostname = target            # the IP/host we probed (external identity)
+        t.network = probe
+        # CPU/memory/processes intentionally stay None — blackbox cannot see inside.
+        return t
+
+
 # --- local helpers -----------------------------------------------------------
 
 
@@ -321,6 +426,6 @@ def _as_list(value) -> list:
 
 
 def build_source() -> TelemetrySource:
-    return {"local": LocalSource, "winrm": WinRMSource}.get(
+    return {"local": LocalSource, "winrm": WinRMSource, "blackbox": BlackboxSource}.get(
         settings.telemetry_source, NullSource
     )()

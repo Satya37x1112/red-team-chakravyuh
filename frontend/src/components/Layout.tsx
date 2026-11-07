@@ -34,6 +34,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
   {
     heading: "Lab",
     items: [
+      { to: "/recon", label: "Target Recon", icon: "network" },
       { to: "/integrations", label: "Integrations", icon: "layers" },
       { to: "/range", label: "Cyber range", icon: "network" },
     ],

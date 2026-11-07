@@ -36,6 +36,25 @@ export interface Telemetry {
   interfaces: NetworkInterface[];
   connections: NetworkConnection[];
   windows_events: unknown[];
+  network: NetworkProbe | null;
+}
+
+export interface PortState {
+  port: number;
+  open: boolean;
+  service: string | null;
+  latency_ms: number | null;
+}
+
+export interface NetworkProbe {
+  target: string | null;
+  reachable: boolean;
+  latency_ms: number | null;
+  open_ports: number[];
+  ports: PortState[];
+  http_status: number | null;
+  http_server: string | null;
+  probed_at: string | null;
 }
 
 export interface Decision {
