@@ -61,9 +61,11 @@ def test_gateway_fail_closed_on_internal_error(armed_bruteforce, monkeypatch):
     assert decision.rejected and "fail-closed" in decision.reason.lower()
 
 
-def test_rat_related_plan_is_rejected():
+def test_rat_related_plan_rejected_when_disabled():
+    # rat_related is implemented (Section 4) but must be explicitly armed; an
+    # AI-forged plan is still rejected (fail-closed) while the module is disabled.
     forged = ExecutionPlan(scenario_id="t", module=ModuleId.rat_related, source=PlanSource.ai,
                            requested_target="10.0.0.1")
     decision = gateway.evaluate(forged)
     assert decision.rejected
-    assert "not executable" in decision.reason.lower()
+    assert "disabled" in decision.reason.lower()

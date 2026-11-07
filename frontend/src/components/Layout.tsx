@@ -20,6 +20,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
       { to: "/ddos", label: "DDoS", icon: "pulse" },
       { to: "/bruteforce", label: "Brute force", icon: "key" },
       { to: "/rat", label: "RAT", icon: "terminal" },
+      { to: "/remote-access", label: "Remote Access", icon: "terminal" },
     ],
   },
   {

@@ -12,11 +12,13 @@ from .caldera import CalderaIntegration
 from .hydra import HydraIntegration
 from .locust import LocustIntegration
 from .pentestgpt import PentestGPTIntegration
+from .remote_access import RemoteAccessIntegration
 from .vervet import VervetIntegration
 
 REGISTRY: dict[str, Integration] = {
     cls.name: cls()
-    for cls in (CalderaIntegration, LocustIntegration, HydraIntegration, VervetIntegration, PentestGPTIntegration)
+    for cls in (CalderaIntegration, LocustIntegration, HydraIntegration, VervetIntegration,
+                PentestGPTIntegration, RemoteAccessIntegration)
 }
 
 

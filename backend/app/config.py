@@ -111,6 +111,21 @@ class Settings(BaseSettings):
     # Prompt-contract version recorded in every planning/analysis audit record.
     ai_prompt_version: str = "chakravyuh-planner-v1"
 
+    # ---- Section 4: Credentialed Remote Access / Post-Exploitation Demo (RAT alt) ----
+    # Credentialed remote ADMINISTRATION via an approved remote-management interface
+    # (NetExec/nxc). NOT a RAT: no implant, no persistence, no arbitrary command exec;
+    # only a fixed, hardcoded allowlist of benign READ-ONLY operations is possible.
+    # Fail-closed: does nothing unless enabled AND an authorized target AND valid lab
+    # credentials are all configured. Credentials are secret — never logged/returned.
+    remote_access_enabled: bool = False
+    remote_access_bin: str = "nxc"           # NetExec binary (or name on PATH)
+    remote_access_protocol: str = "smb"      # smb | winrm (read-only auth + banner)
+    remote_access_target: str = ""           # authorized lab host/IP (must also be allowlisted)
+    remote_access_user: str = ""             # lab account username
+    remote_access_password: str = ""         # lab account password (SECRET — masked everywhere)
+    remote_access_domain: str = ""           # optional AD domain ("" = local auth)
+    remote_access_max_run_seconds: int = 30  # hard cap on each bounded remote op
+
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""
         per_kind = {

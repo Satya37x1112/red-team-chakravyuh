@@ -35,9 +35,10 @@ _MODULE_CAPABILITIES: dict[str, dict[str, str]] = {
         "description": "Bounded concurrent load against an authorized web service to observe availability.",
     },
     "rat_related": {
-        "title": "Remote-access / UBA (reserved)",
-        "engine": "n/a",
-        "description": "NOT implemented in this section; the planner must not select it.",
+        "title": "Credentialed Remote Access / Post-Exploitation Demonstration (RAT Alternative)",
+        "engine": "NetExec",
+        "description": "Credentialed remote ADMINISTRATION via an approved interface — a fixed "
+                       "allowlist of benign READ-ONLY operations only. No implant, no arbitrary commands.",
     },
 }
 
@@ -81,13 +82,9 @@ def _modules_view() -> list[dict[str, Any]]:
     out = []
     for mid in (ModuleId.bruteforce, ModuleId.ddos, ModuleId.rat_related):
         cap = _MODULE_CAPABILITIES[mid.value]
-        if mid is ModuleId.rat_related:
-            enabled, available, reason = False, False, "reserved; not implemented in this section"
-            targets: list[str] = []
-        else:
-            enabled = policy.module_enabled(mid)
-            available, reason = policy.integration_available(mid)
-            targets = sorted(policy.authorized_targets(mid))
+        enabled = policy.module_enabled(mid)
+        available, reason = policy.integration_available(mid)
+        targets = sorted(policy.authorized_targets(mid))
         out.append({
             "module": mid.value,
             "title": cap["title"],
@@ -97,6 +94,7 @@ def _modules_view() -> list[dict[str, Any]]:
             "adapter_available": available,
             "status_reason": reason,
             "authorized_targets": targets,
+            "approved_operations": policy.approved_operations(mid),
             "caps": _caps_view(mid),
         })
     return out

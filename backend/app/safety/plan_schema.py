@@ -25,7 +25,13 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# A remote-access operation IDENTIFIER (not a command). Strict token only — no
+# shell metacharacters, chaining, substitution, or whitespace can ever appear.
+_OP_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 
 
 class ModuleId(str, enum.Enum):
@@ -61,6 +67,19 @@ class ExecutionParams(BaseModel):
     spawn_rate: int | None = Field(default=None, ge=1, le=10_000)
     # Shared.
     run_seconds: int | None = Field(default=None, ge=1, le=86_400)
+    # Remote-access (RAT alternative): a hardcoded operation IDENTIFIER the
+    # adapter maps to its own fixed implementation. NEVER a command string. The
+    # membership check (is it an APPROVED op) is enforced by the Safety Gateway.
+    operation: str | None = Field(default=None, max_length=41)
+
+    @field_validator("operation")
+    @classmethod
+    def _operation_is_safe_token(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not _OP_ID_RE.match(v):
+            raise ValueError("operation must be a safe identifier token [a-z][a-z0-9_]* (no commands)")
+        return v
 
 
 class ExecutionPlan(BaseModel):

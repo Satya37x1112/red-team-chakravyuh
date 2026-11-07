@@ -13,6 +13,8 @@ import type {
   OperationPlanPreview,
   OperationSummary,
   PentestReport,
+  RemoteAccessResult,
+  RemoteAccessStatus,
   SessionBrief,
   SessionDetail,
   SmartAnalysis,
@@ -81,6 +83,11 @@ export const api = {
     post("/api/operations", body).then(json<OperationDetail>),
   listOperations: () => fetch("/api/operations").then(json<OperationSummary[]>),
   getOperation: (id: string) => fetch(`/api/operations/${id}`).then(json<OperationDetail>),
+
+  // Section 4: Credentialed Remote Access (RAT alternative)
+  remoteAccessStatus: () => fetch("/api/integrations/remote_access").then(json<RemoteAccessStatus>),
+  remoteAccessRun: (body: { operation: string; run_seconds?: number }) =>
+    post("/api/integrations/remote_access/run", body).then(json<RemoteAccessResult>),
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),

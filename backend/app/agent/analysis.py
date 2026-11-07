@@ -66,6 +66,17 @@ def _measured_facts(record: ExecutionRecord, result: dict[str, Any]) -> tuple[li
                 f"{totals.get('failures')} failures (~{totals.get('rps')}/s)."
             )
             evidence["totals"] = totals
+    elif record.module == "rat_related" and isinstance(result, dict):
+        op = result.get("operation")
+        st = result.get("status")
+        facts.append(f"Remote-access operation '{op}' → status: {st}.")
+        evidence["operation"] = op
+        evidence["remote_status"] = st
+        measured = result.get("measured") or {}
+        for k, v in measured.items():
+            if v is not None:
+                facts.append(f"{k}: {v}")
+        evidence["measured"] = measured
     return facts, evidence
 
 
@@ -78,6 +89,8 @@ def _objective_met(record: ExecutionRecord, result: dict[str, Any]) -> bool:
     if record.module == "ddos":
         totals = result.get("totals") or {}
         return bool(totals.get("failures"))  # observed failures = availability impact
+    if record.module == "rat_related":
+        return result.get("status") == "success"  # authenticated remote-mgmt confirmed
     return False
 
 

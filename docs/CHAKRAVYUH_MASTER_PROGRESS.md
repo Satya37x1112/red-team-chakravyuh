@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (end of Section 3.1 — verification)
+Last updated: 2026-11-07 (end of Section 4 — Credentialed Remote Access / RAT alternative)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **80 passed, 1 skipped** (skip = live-LLM test, no `OPENROUTER_API_KEY`); frontend `npm run typecheck` clean + `npm run build` succeeds.
+Test status at this update: **110 passed** (live-LLM test now runs — keys present); frontend `npm run typecheck` clean + `npm run build` succeeds.
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -44,7 +44,7 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 - [x] Execution registry — **COMPLETED AND TESTED**
 - [~] Hydra integration — **PARTIALLY COMPLETED** (fail-closed, gateway-routed, mock-tested; not run live)
 - [~] Locust integration — **PARTIALLY COMPLETED** (fail-closed, gateway-routed, mock-tested; not run live)
-- [ ] RAT-related capability — **NOT STARTED** (reserved; `rat_related` rejected at the gateway)
+- [~] RAT-related capability (Credentialed Remote Access, Section 4) — **PARTIALLY COMPLETED** (adapter + operation allowlist + gateway/planner/frontend integration, 29 mock tests; **live NetExec run unverified**)
 - [~] Telemetry collection — **PARTIALLY COMPLETED** (none/local/winrm implemented; winrm live unverified)
 - [~] Observation engine — **PARTIALLY COMPLETED** (analysis component mock-tested; live telemetry-diff unverified)
 - [x] AI feedback loop — **COMPLETED AND TESTED** (deterministic guardrails + mock LLM)
@@ -142,6 +142,23 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 | Real Locust execution | **IMPLEMENTED BUT UNVERIFIED** |
 | Real Windows (WinRM) telemetry | **IMPLEMENTED BUT UNVERIFIED** |
 | Frontend (typecheck + build + contract) | **VERIFIED**; live UI interaction **UNVERIFIED** |
+
+### Section 4 — Credentialed Remote Access / Post-Exploitation Demonstration (RAT Alternative)
+- **Objective:** implement the third controlled module as credentialed remote ADMINISTRATION (not a RAT), fully integrated into the centralized AI + Safety Gateway architecture.
+- **Work:** `RemoteAccessIntegration` (NetExec, fixed argv per operation id, read-only, fail-closed, password-redacting); hardcoded operation allowlist (connectivity_check/whoami/hostname/os_info/system_info); `operation` field added to the plan schema (strict safe-token regex); gateway D2 operation-allowlist check; policy/dispatcher/planner/context/analysis wired for `rat_related`; `/api/integrations/remote_access/run`; Remote Access dashboard page; 29 mock tests.
+- **Files created:** `backend/app/integrations/remote_access.py`, `backend/tests/test_remote_access.py`, `frontend/src/pages/RemoteAccess.tsx`, `docs/CLAUDE_SECTION_4_IMPLEMENTATION.md`. **Modified:** `backend/app/config.py`, `backend/app/safety/{plan_schema,policy,gateway,dispatcher}.py`, `backend/app/agent/{planner,context,analysis}.py`, `backend/app/integrations/__init__.py`, `backend/app/api/integrations.py`, `backend/.env.example`, `backend/tests/conftest.py`, two Section-3 tests updated (rat_related now disabled-by-default, not "unsupported"), `frontend/src/{api.ts,types.ts,App.tsx,components/Layout.tsx}`.
+- **Tests executed:** `pytest` → **110 passed**; frontend typecheck + build clean; runtime smoke (disabled→423, injection→422, fail-closed). **Issues:** endpoint raised 500 on an unsafe operation token → fixed to return 422. **Decisions:** operation-identifier-only (no command strings ever); single safe NetExec banner call underlies all ops; keep remote ops short/read-only due to no guaranteed remote cancellation. **Remaining:** live NetExec verification (authorized target + lab creds + go-ahead).
+
+**Section 4 verification distinctions:**
+| Capability | Status |
+|---|---|
+| Remote-access adapter logic (parsing, redaction, allowlist) | **MOCK VERIFIED** |
+| Operation allowlist + gateway rejection | **MOCK VERIFIED** |
+| Planner/analysis/feedback integration | **MOCK VERIFIED** |
+| Credential masking (result + audit) | **MOCK VERIFIED** |
+| API + frontend (typecheck/build) | **MOCK VERIFIED** / built |
+| Live NetExec auth + banner vs real Windows target | **IMPLEMENTED BUT UNVERIFIED** |
+| Real remote execution | **BLOCKED** (needs authorized target + lab creds + go-ahead) |
 
 ## E. Remaining Work
 

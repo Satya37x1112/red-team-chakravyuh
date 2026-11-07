@@ -29,17 +29,23 @@ from ..safety.plan_schema import ExecutionParams, ExecutionPlan, ModuleId, PlanS
 # plan constructs; the Gateway then clamps down to the real configured caps.
 _SCHEMA_BOUNDS = {"tasks": (1, 64), "users": (1, 10_000), "spawn_rate": (1, 10_000),
                   "run_seconds": (1, 86_400)}
-_MODULE_PARAM_KEYS = {"bruteforce": ("tasks", "run_seconds"), "ddos": ("users", "spawn_rate", "run_seconds")}
+_MODULE_PARAM_KEYS = {
+    "bruteforce": ("tasks", "run_seconds"),
+    "ddos": ("users", "spawn_rate", "run_seconds"),
+    "rat_related": ("run_seconds",),  # 'operation' is handled separately (it's an id, not an int)
+}
 
 SYSTEM_PROMPT = (
     "You are the centralized planning brain of CHAKRAVYUH, an AUTHORIZED cyber-range "
     "console. You coordinate bounded Red-Team modules against an isolated, authorized "
     "lab target. You NEVER choose a target (the system binds it) and you NEVER set hard "
     "limits (the system enforces them). Reason over the provided context and recommend "
-    "ONE module and bounded parameters. Respond with STRICT JSON only, shaped exactly: "
-    '{"module": "bruteforce"|"ddos", "params": {<relevant bounded ints>}, '
-    '"reasoning": <short string>, "expected_observations": <short string>, '
-    '"confidence": "low"|"medium"|"high"}.'
+    "ONE runnable module and bounded parameters. For the remote-access module you MUST "
+    "pick params.operation from the approved operation identifiers listed in the context "
+    "— never a command string. Respond with STRICT JSON only, shaped exactly: "
+    '{"module": <one runnable module>, "params": {<relevant bounded ints and/or '
+    '"operation": "<approved id>">}, "reasoning": <short string>, '
+    '"expected_observations": <short string>, "confidence": "low"|"medium"|"high"}.'
 )
 
 
@@ -69,12 +75,22 @@ def _clamp_schema(key: str, value: Any) -> int | None:
 
 def _params_for(module: str, raw: dict[str, Any] | None) -> ExecutionParams:
     raw = raw or {}
-    kwargs: dict[str, int] = {}
+    kwargs: dict[str, Any] = {}
     for key in _MODULE_PARAM_KEYS.get(module, ()):
         if key in raw and raw[key] is not None:
             clamped = _clamp_schema(key, raw[key])
             if clamped is not None:
                 kwargs[key] = clamped
+    # Remote access: the AI selects an OPERATION IDENTIFIER (never a command).
+    # Keep only an approved id; otherwise default to the safest one. The gateway
+    # re-validates membership regardless.
+    if module == "rat_related":
+        from ..safety.plan_schema import ModuleId
+        from ..safety import policy
+
+        approved = policy.approved_operations(ModuleId.rat_related)
+        want = raw.get("operation")
+        kwargs["operation"] = want if want in approved else (approved[0] if approved else None)
     return ExecutionParams(**kwargs)
 
 

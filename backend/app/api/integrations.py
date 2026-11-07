@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -287,6 +287,47 @@ def hydra_run(req: HydraRunRequest, db: Session = Depends(get_db)) -> dict:
     result["artifact_id"] = _save_artifact(
         db, "hydra", "credential_test", f"Hydra → {p.get('service')}://{p.get('target')}", summary, result
     )
+    result["execution_id"] = decision.execution_id
+    result["execution_state"] = exec_outcome.get("state")
+    return result
+
+
+# ---- remote access (Credentialed Remote Access / Post-Exploitation Demo) -----
+
+class RemoteAccessRunRequest(BaseModel):
+    operation: str = Field(min_length=1, max_length=41)   # an APPROVED operation id, not a command
+    run_seconds: int | None = Field(default=None, ge=1)
+
+
+@router.post("/remote_access/run")
+def remote_access_run(req: RemoteAccessRunRequest, db: Session = Depends(get_db)) -> dict:
+    """Run ONE approved read-only remote operation THROUGH the Safety Gateway.
+    The AI/API supplies only an operation identifier — never a command string.
+    Credentials come from config and never appear in the response."""
+    try:
+        plan = ExecutionPlan(
+            scenario_id="integration:remote_access",
+            module=ModuleId.rat_related,
+            source=PlanSource.manual,
+            requested_target=settings.remote_access_target or "unconfigured",
+            params=ExecutionParams(operation=req.operation, run_seconds=req.run_seconds),
+        )
+    except PydanticValidationError as exc:
+        # Unsafe operation token (metachars/injection) — reject at the boundary.
+        raise HTTPException(422, f"invalid operation identifier: {exc.errors()[0]['msg']}") from exc
+    decision = evaluate(plan)
+    if decision.rejected:
+        raise HTTPException(423, decision.reason)
+    exec_outcome = dispatcher.run_execution(decision.execution_id)  # type: ignore[arg-type]
+    rec = registry.get(decision.execution_id)  # type: ignore[arg-type]
+    if rec and rec.state == ExecState.FAILED:
+        raise HTTPException(502, f"remote access failed: {rec.error}")
+    result = exec_outcome.get("result") or {}
+    summary = (f"{result.get('operation')} → {result.get('protocol')}://{result.get('target')} "
+               f"· status={result.get('status')}")
+    result["artifact_id"] = _save_artifact(
+        db, "remote_access", "remote_operation",
+        f"Remote access → {result.get('operation')} @ {result.get('target')}", summary, result)
     result["execution_id"] = decision.execution_id
     result["execution_state"] = exec_outcome.get("state")
     return result

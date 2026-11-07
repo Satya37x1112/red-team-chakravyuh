@@ -42,8 +42,17 @@ def _locust_adapter(params: dict) -> dict:
     )
 
 
+def _remote_access_adapter(params: dict) -> dict:
+    from ..integrations.remote_access import RemoteAccessIntegration
+
+    return RemoteAccessIntegration().run(
+        operation=params.get("operation"),
+        run_seconds=params.get("run_seconds"),
+    )
+
+
 def default_adapters() -> dict[str, Adapter]:
-    return {"hydra": _hydra_adapter, "locust": _locust_adapter}
+    return {"hydra": _hydra_adapter, "locust": _locust_adapter, "remote_access": _remote_access_adapter}
 
 
 def run_execution(execution_id: str, *, adapters: dict[str, Adapter] | None = None) -> dict:

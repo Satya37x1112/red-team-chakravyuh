@@ -36,10 +36,12 @@ def test_disabled_module_rejected():
     assert "disabled" in d.reason.lower()
 
 
-def test_unsupported_module_rejected():
+def test_rat_related_rejected_when_disabled():
+    # rat_related is a real module since Section 4, but disabled by default, so a
+    # plan for it is still rejected (fail-closed) until explicitly armed.
     d = gateway.evaluate(_plan(module=ModuleId.rat_related))
     assert d.rejected
-    assert "not executable" in d.reason.lower()
+    assert "disabled" in d.reason.lower()
 
 
 def test_unavailable_integration_rejected(armed_bruteforce, monkeypatch):

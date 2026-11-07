@@ -31,7 +31,11 @@ POLICY_VERSION = "chakravyuh-safety-v1"
 # simultaneous requests cannot both slip past the concurrency limit (TOCTOU).
 _APPROVAL_LOCK = threading.Lock()
 
-_ADAPTER_NAME = {ModuleId.bruteforce: "hydra", ModuleId.ddos: "locust"}
+_ADAPTER_NAME = {
+    ModuleId.bruteforce: "hydra",
+    ModuleId.ddos: "locust",
+    ModuleId.rat_related: "remote_access",
+}
 
 
 @dataclass
@@ -121,6 +125,17 @@ def evaluate(plan: ExecutionPlan, *, dry_run: bool = False) -> GatewayDecision:
                 f"Target '{plan.requested_target}' is not in the authorized allowlist for "
                 f"'{plan.module.value}'.",
             )
+
+        # D2. operation allowlist — for modules that take an operation identifier
+        # (remote access), it must be one of the hardcoded approved operations.
+        # The AI/API never supplies a command string; only an approved id runs.
+        if policy.requires_operation(plan.module):
+            if not policy.is_operation_allowed(plan.module, plan.params.operation):
+                return _reject(
+                    plan,
+                    f"Operation '{plan.params.operation}' is not in the approved allowlist for "
+                    f"'{plan.module.value}' (allowed: {', '.join(policy.approved_operations(plan.module))}).",
+                )
 
         # F. clamp parameters DOWN to configured caps
         validated = policy.clamp_params(plan.module, plan.params, plan.requested_duration_seconds)

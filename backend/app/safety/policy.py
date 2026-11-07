@@ -15,6 +15,7 @@ by crafting a plan.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..config import settings
 from .plan_schema import ExecutionParams, ModuleId
@@ -44,7 +45,10 @@ def caps_for(module: ModuleId) -> ModuleCaps:
             max_users=settings.locust_max_users,
             max_spawn_rate=settings.locust_max_spawn_rate,
         )
-    # rat_related and anything else: no caps defined => not runnable.
+    if module is ModuleId.rat_related:
+        # Credentialed remote-access demo: a single bounded run-time cap.
+        return ModuleCaps(max_run_seconds=settings.remote_access_max_run_seconds)
+    # anything else: no caps defined => not runnable.
     return ModuleCaps(max_run_seconds=0)
 
 
@@ -53,7 +57,9 @@ def module_enabled(module: ModuleId) -> bool:
         return bool(settings.hydra_enabled)
     if module is ModuleId.ddos:
         return bool(settings.locust_enabled)
-    return False  # rat_related: not implemented in this section
+    if module is ModuleId.rat_related:
+        return bool(settings.remote_access_enabled)
+    return False
 
 
 def integration_available(module: ModuleId) -> tuple[bool, str]:
@@ -69,9 +75,31 @@ def integration_available(module: ModuleId) -> tuple[bool, str]:
 
             st = LocustIntegration().status()
             return bool(st.available), st.reason
+        if module is ModuleId.rat_related:
+            from ..integrations.remote_access import RemoteAccessIntegration
+
+            st = RemoteAccessIntegration().status()
+            return bool(st.available), st.reason
     except Exception as exc:  # fail closed on any adapter error
         return False, f"adapter status check failed: {exc}"
     return False, f"module '{module.value}' has no execution adapter in this section"
+
+
+def approved_operations(module: ModuleId) -> list[str]:
+    """The hardcoded operation allowlist for a module (remote-access only)."""
+    if module is ModuleId.rat_related:
+        from ..integrations.remote_access import REMOTE_OPS
+
+        return list(REMOTE_OPS.keys())
+    return []
+
+
+def requires_operation(module: ModuleId) -> bool:
+    return module is ModuleId.rat_related
+
+
+def is_operation_allowed(module: ModuleId, operation: str | None) -> bool:
+    return bool(operation) and operation in approved_operations(module)
 
 
 def _split_allowlist(raw: str) -> set[str]:
@@ -89,6 +117,8 @@ def authorized_targets(module: ModuleId) -> set[str]:
         allow.add(settings.hydra_target.strip())
     if module is ModuleId.ddos and settings.locust_target_url:
         allow.add(settings.locust_target_url.strip())
+    if module is ModuleId.rat_related and settings.remote_access_target:
+        allow.add(settings.remote_access_target.strip())
     return allow
 
 
@@ -104,7 +134,7 @@ def clamp_params(module: ModuleId, requested: ExecutionParams, requested_duratio
     adapter clamps again independently.
     """
     caps = caps_for(module)
-    out: dict[str, int] = {}
+    out: dict[str, Any] = {}
 
     # Duration: the smaller of (requested params.run_seconds, requested_duration,
     # cap). Defaults to the cap when nothing is requested.
@@ -122,6 +152,9 @@ def clamp_params(module: ModuleId, requested: ExecutionParams, requested_duratio
         spawn = requested.spawn_rate if requested.spawn_rate is not None else caps.max_spawn_rate
         out["users"] = max(1, min(users, caps.max_users))
         out["spawn_rate"] = max(1, min(spawn, caps.max_spawn_rate))
+    elif module is ModuleId.rat_related:
+        # Carry the APPROVED operation identifier through (gateway validated it).
+        out["operation"] = requested.operation
 
     return out
 

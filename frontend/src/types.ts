@@ -320,3 +320,35 @@ export interface OperationDetail extends OperationSummary {
   ended_at: string | null;
   steps: OperationStep[];
 }
+
+// --- Section 4: Credentialed Remote Access (RAT alternative) ---
+export interface RemoteAccessStatus {
+  name: string;
+  title: string;
+  available: boolean;
+  reason: string;
+  detail: {
+    enabled?: boolean;
+    protocol?: string;
+    target?: string | null;
+    credentials_configured?: boolean;
+    runnable?: boolean;
+    operations?: string[];
+    operation_descriptions?: Record<string, string>;
+    caps?: { max_run_seconds?: number };
+  };
+}
+
+export interface RemoteAccessResult {
+  operation: string;
+  target: string;
+  protocol: string;
+  status: string;
+  measured: Record<string, unknown>;
+  message: string;
+  exit_code: number | null;
+  timed_out: boolean;
+  duration_seconds: number;
+  execution_id?: string;
+  execution_state?: string;
+}

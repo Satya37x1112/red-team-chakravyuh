@@ -19,6 +19,9 @@ _WATCHED = [
     "locust_max_run_seconds", "safety_target_allowlist", "safety_max_concurrent_executions",
     "safety_admin_token", "killswitch_grace_seconds",
     "ai_max_feedback_iterations", "ai_consecutive_failure_stop", "ai_prompt_version",
+    "remote_access_enabled", "remote_access_target", "remote_access_user",
+    "remote_access_password", "remote_access_domain", "remote_access_protocol",
+    "remote_access_max_run_seconds", "remote_access_bin",
 ]
 
 
@@ -50,6 +53,20 @@ def armed_bruteforce():
     settings.hydra_max_tasks = 4
     settings.hydra_max_run_seconds = 30
     return "10.9.9.9"
+
+
+@pytest.fixture
+def armed_remote_access():
+    """Enable credentialed remote access against an authorized target (no real call)."""
+    settings.remote_access_enabled = True
+    settings.remote_access_target = "192.168.176.50"
+    settings.safety_target_allowlist = "192.168.176.50"
+    settings.remote_access_user = "labadmin"
+    settings.remote_access_password = "Welcome1"   # synthetic lab cred for tests
+    settings.remote_access_domain = "LAB"
+    settings.remote_access_protocol = "smb"
+    settings.remote_access_max_run_seconds = 30
+    return "192.168.176.50"
 
 
 @pytest.fixture
