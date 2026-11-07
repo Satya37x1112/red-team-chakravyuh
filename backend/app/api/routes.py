@@ -118,19 +118,41 @@ def kill_attack(session_id: str, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/killswitch")
 async def engage_kill_switch() -> dict:
-    killed = orchestrator.engage_kill_switch()
+    """Unified kill switch: halts the range, terminates managed real executions
+    (Hydra/Locust child process groups) AND simulation sessions."""
+    from ..safety.killswitch import kill_switch
+
+    report = kill_switch.engage("operator kill switch")
+    killed = report.sessions_terminated
     await hub.broadcast(
         "KILL_SWITCH_ENGAGED",
-        {"killed": killed, "message": f"Kill switch engaged. {len(killed)} session(s) terminated; range halted."},
+        {
+            "killed": killed,
+            "executions_cancelled": report.executions_cancelled,
+            "processes_terminated": len(report.processes_terminated),
+            "message": (
+                f"Kill switch engaged. {len(killed)} session(s) + "
+                f"{len(report.executions_cancelled)} execution(s) terminated; range halted."
+            ),
+        },
     )
-    return {"halted": True, "killed": killed}
+    return {"halted": True, "killed": killed, **report.as_dict()}
+
+
+class KillSwitchReset(BaseModel):
+    admin_token: str
 
 
 @router.post("/killswitch/reset")
-async def reset_kill_switch() -> dict:
-    orchestrator.halted = False
-    await hub.broadcast("KILL_SWITCH_RESET", {"message": "Range re-armed by operator."})
-    return {"halted": False}
+async def reset_kill_switch(req: KillSwitchReset) -> dict:
+    """Re-arm the range. Requires SAFETY_ADMIN_TOKEN (no unauthenticated reset)."""
+    from ..safety.killswitch import kill_switch
+
+    ok, message = kill_switch.reset(req.admin_token)
+    if not ok:
+        raise HTTPException(403, message)
+    await hub.broadcast("KILL_SWITCH_RESET", {"message": "Range re-armed by authorized operator."})
+    return {"halted": False, "message": message}
 
 
 @router.get("/events/recent")

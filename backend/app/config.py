@@ -89,6 +89,19 @@ class Settings(BaseSettings):
     # PentestGPT agent. Console-script name (from its pyproject) or a full path.
     pentestgpt_cmd: str = "pentestgpt-agent"
 
+    # ---- Section 2: unified execution-control / Safety Gateway ----
+    # Extra authorized targets for the Safety Gateway allowlist, comma-separated.
+    # The module's own configured target (HYDRA_TARGET / LOCUST_TARGET_URL) is
+    # always authorized in addition to these. Anything NOT listed is rejected.
+    safety_target_allowlist: str = ""
+    # Max simultaneous controlled executions the Gateway will approve.
+    safety_max_concurrent_executions: int = 3
+    # Grace period before the kill switch escalates SIGTERM -> SIGKILL (seconds).
+    killswitch_grace_seconds: float = 5.0
+    # Admin token required to RESET the kill switch. Empty => reset is refused
+    # (there is no unauthenticated reset). Set this in .env to enable re-arming.
+    safety_admin_token: str = ""
+
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""
         per_kind = {

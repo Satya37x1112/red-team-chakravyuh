@@ -114,14 +114,32 @@ def _build_assessment(kind: str, plan, execution, observation, risk, anomalies: 
 class Orchestrator:
     def __init__(self) -> None:
         self._killed: set[str] = set()
-        self.halted = False
+        # The unified kill switch (Section 2) owns the halted flag now, so both
+        # the simulation path and the real integration path share one state.
+        # Register the simulation-session terminator so one engage() stops both.
+        from ..safety.killswitch import kill_switch
+
+        kill_switch.register_terminator(self._terminate_sessions)
+
+    @property
+    def halted(self) -> bool:
+        from ..safety.killswitch import kill_switch
+
+        return kill_switch.is_engaged()
 
     def kill(self, session_id: str) -> None:
         self._killed.add(session_id)
 
     def engage_kill_switch(self) -> list[str]:
-        """Halt the range and terminate every session that has not finished."""
-        self.halted = True
+        """Compat shim: engage the unified kill switch (which also stops real
+        executions) and return the simulation sessions it terminated."""
+        from ..safety.killswitch import kill_switch
+
+        report = kill_switch.engage("operator kill switch")
+        return report.sessions_terminated
+
+    def _terminate_sessions(self) -> list[str]:
+        """Terminate every simulation session that has not finished (DB side)."""
         db = SessionLocal()
         try:
             live = db.query(AttackSession).filter(AttackSession.state.notin_(TERMINAL)).all()

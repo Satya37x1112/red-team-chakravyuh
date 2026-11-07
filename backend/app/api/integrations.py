@@ -12,14 +12,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..db import get_db
 from ..integrations import all_status, get_integration
 from ..integrations.caldera import analyze, list_samples, load_sample
-from ..integrations.hydra import HydraIntegration
-from ..integrations.locust import LocustIntegration
 from ..integrations.pentestgpt import list_runs as pentestgpt_list_runs
 from ..integrations.vervet import VervetIntegration
 from ..models import IntegrationArtifact
+from ..safety import dispatcher, evaluate
+from ..safety.plan_schema import ExecutionParams, ExecutionPlan, ModuleId, PlanSource
+from ..safety.registry import ExecState, registry
 
 router = APIRouter(prefix="/api/integrations")
 
@@ -211,17 +213,23 @@ class LocustRunRequest(BaseModel):
 
 @router.post("/locust/run")
 def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
-    integ = LocustIntegration()
-    blocked = integ.preconditions()
-    if blocked:
-        # 423 Locked: armed-but-not-configured or disabled; mirrors the kill switch.
-        raise HTTPException(423, blocked)
-    try:
-        result = integ.run(users=req.users, spawn_rate=req.spawn_rate, run_seconds=req.run_seconds)
-    except RuntimeError as exc:
-        raise HTTPException(423, str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(500, f"locust run failed: {exc}") from exc
+    # Section 2: this real-action path now runs THROUGH the Safety Gateway and the
+    # execution registry/dispatcher — it can no longer bypass centralized control.
+    plan = ExecutionPlan(
+        scenario_id="integration:locust",
+        module=ModuleId.ddos,
+        source=PlanSource.manual,
+        requested_target=settings.locust_target_url or "unconfigured",
+        params=ExecutionParams(users=req.users, spawn_rate=req.spawn_rate, run_seconds=req.run_seconds),
+    )
+    decision = evaluate(plan)
+    if decision.rejected:
+        raise HTTPException(423, decision.reason)
+    outcome = dispatcher.run_execution(decision.execution_id)  # type: ignore[arg-type]
+    rec = registry.get(decision.execution_id)  # type: ignore[arg-type]
+    if rec and rec.state == ExecState.FAILED:
+        raise HTTPException(502, f"locust run failed: {rec.error}")
+    result = outcome.get("result") or {}
     p = result.get("params", {})
     rows = [r for r in (result.get("stats") or []) if isinstance(r, dict)]
     agg = next((r for r in rows if r.get("name") in ("Aggregated", "Total")), None)
@@ -238,6 +246,8 @@ def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
     result["totals"] = {"requests": reqs, "failures": fails, "rps": rps}
     summary = f"{p.get('users')} users · {secs}s · {reqs} requests (~{rps}/s), {fails} failures → {p.get('target')}"
     result["artifact_id"] = _save_artifact(db, "locust", "load_test", f"Load test → {p.get('target')}", summary, result)
+    result["execution_id"] = decision.execution_id
+    result["execution_state"] = outcome.get("state")
     return result
 
 
@@ -250,17 +260,22 @@ class HydraRunRequest(BaseModel):
 
 @router.post("/hydra/run")
 def hydra_run(req: HydraRunRequest, db: Session = Depends(get_db)) -> dict:
-    integ = HydraIntegration()
-    blocked = integ.preconditions()
-    if blocked:
-        # 423 Locked: disabled, unconfigured, or over the attempt cap.
-        raise HTTPException(423, blocked)
-    try:
-        result = integ.run(tasks=req.tasks, run_seconds=req.run_seconds)
-    except RuntimeError as exc:
-        raise HTTPException(423, str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(500, f"hydra run failed: {exc}") from exc
+    # Section 2: routed through the Safety Gateway + execution registry/dispatcher.
+    plan = ExecutionPlan(
+        scenario_id="integration:hydra",
+        module=ModuleId.bruteforce,
+        source=PlanSource.manual,
+        requested_target=settings.hydra_target or "unconfigured",
+        params=ExecutionParams(tasks=req.tasks, run_seconds=req.run_seconds),
+    )
+    decision = evaluate(plan)
+    if decision.rejected:
+        raise HTTPException(423, decision.reason)
+    exec_outcome = dispatcher.run_execution(decision.execution_id)  # type: ignore[arg-type]
+    rec = registry.get(decision.execution_id)  # type: ignore[arg-type]
+    if rec and rec.state == ExecState.FAILED:
+        raise HTTPException(502, f"hydra run failed: {rec.error}")
+    result = exec_outcome.get("result") or {}
     p = result.get("params", {})
     n = result.get("found_count", 0)
     logins = ", ".join(sorted({f.get("login", "?") for f in result.get("found", [])})) or "none"
@@ -272,4 +287,6 @@ def hydra_run(req: HydraRunRequest, db: Session = Depends(get_db)) -> dict:
     result["artifact_id"] = _save_artifact(
         db, "hydra", "credential_test", f"Hydra → {p.get('service')}://{p.get('target')}", summary, result
     )
+    result["execution_id"] = decision.execution_id
+    result["execution_state"] = exec_outcome.get("state")
     return result

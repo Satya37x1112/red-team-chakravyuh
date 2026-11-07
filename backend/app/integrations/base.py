@@ -88,15 +88,14 @@ class Integration(ABC):
     def _run(cmd: list[str], timeout: float = 30, cwd: str | None = None) -> subprocess.CompletedProcess:
         """Run a command with no shell, captured output, and a hard timeout.
 
-        Raises on timeout / missing binary; callers translate failures into a
-        clean 'unavailable' or an HTTP error rather than crashing the server.
+        Delegates to the Section-2 managed-process runner so every child starts
+        in its own process group and is tracked for the lifetime of the call —
+        this is what lets the unified kill switch terminate an in-flight Hydra or
+        Locust run, not just the Python handler waiting on it. Behaviourally a
+        drop-in for subprocess.run: same CompletedProcess return, same
+        TimeoutExpired on timeout. Callers translate failures into a clean
+        'unavailable' or an HTTP error rather than crashing the server.
         """
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-            shell=False,
-        )
+        from ..safety.process import run_managed
+
+        return run_managed(cmd, timeout=timeout, cwd=cwd)

@@ -159,6 +159,27 @@ class IntegrationArtifact(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class AuditRecord(Base):
+    """One auditable decision or lifecycle milestone from the execution-control
+    layer (Section 2). Payloads are secret-masked before they are written here
+    (see app/safety/audit.py) — no plaintext password, API key, token, or
+    credential list is ever stored."""
+
+    __tablename__ = "audit_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    event_type: Mapped[str] = mapped_column(String(60), index=True)  # GATEWAY_APPROVED, ...
+    execution_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    scenario_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    module: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(20), nullable=True)  # approved | rejected
+    reason: Mapped[str] = mapped_column(Text, default="")
+    policy_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)  # already secret-masked
+
+
 class SimulationMetric(Base):
     """A single synthetic metric produced by a module's SIMULATION execute().
 
