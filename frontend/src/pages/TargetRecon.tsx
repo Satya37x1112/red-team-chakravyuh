@@ -83,6 +83,12 @@ export function TargetRecon() {
           <Empty>No open TCP ports observed among the probed set.</Empty>
         ) : (
           <div className="flex flex-col gap-3">
+            {net.complete === false && (
+              <div className="rounded border border-warn/40 bg-warn/5 px-3 py-2 text-2xs text-warn">
+                Partial probe — only {net.ports_probed}/{net.ports_total} ports were checked within the time
+                budget. Unchecked ports are not shown (not assumed closed).
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {openPorts.map((p) => (
                 <span

@@ -22,10 +22,24 @@ class Settings(BaseSettings):
     # credentials and NOTHING installed on the target. It observes reachability,
     # which TCP ports are open, latency, and HTTP banners. Honest: it cannot see
     # inside the host (CPU/RAM stay unavailable). Authorized lab target only.
-    blackbox_target: str = ""       # target host/IP to probe (authorized lab only)
+    blackbox_target: str = ""       # IPv4 to probe; must be an RFC1918 lab IP IN the allowlist
     blackbox_ports: str = "80,443,445,3389,5985,139,135,22,8080,3306,1433,21,23"
-    blackbox_timeout_seconds: float = 2.0   # per-port connect timeout
+    blackbox_timeout_seconds: float = 2.0   # per-port connect timeout (clamped 0.2–10s)
     blackbox_http: bool = True      # also fetch HTTP(S) status/Server banner where open
+    # Dedicated telemetry allowlist (comma-separated IPv4), kept SEPARATE from the
+    # attack-execution target policy. BLACKBOX_TARGET must appear here or the probe
+    # is refused (fail-closed). Address policy: IPv4 literals only, RFC1918 private
+    # ranges only, no public IPs, no hostnames, no DNS.
+    blackbox_allowlist: str = ""
+    # Total wall-clock budget for one probe sweep (all ports). One slow/filtered
+    # port cannot stall telemetry past this; unprobed ports are reported honestly.
+    blackbox_total_budget_seconds: float = 20.0
+    # Loopback is NOT allowed in production; only test fixtures flip this True.
+    blackbox_allow_loopback: bool = False
+
+    @property
+    def blackbox_allowlist_set(self) -> set[str]:
+        return {t.strip() for t in self.blackbox_allowlist.split(",") if t.strip()}
 
     @property
     def blackbox_port_list(self) -> list[int]:

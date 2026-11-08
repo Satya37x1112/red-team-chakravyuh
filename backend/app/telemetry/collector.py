@@ -231,27 +231,75 @@ def _http_probe(host: str, port: int, https: bool, timeout: float) -> tuple[int 
         return None, None
 
 
+def authorize_blackbox_target(target: str) -> tuple[bool, str]:
+    """Deterministic, fail-closed authorization for a blackbox probe target.
+
+    Address policy (no DNS is ever performed — IPv4 literals only):
+      * must parse as an IPv4 address (hostnames / IPv6 / malformed are rejected);
+      * must be RFC1918 private (public / global IPs are rejected);
+      * loopback is rejected unless BLACKBOX_ALLOW_LOOPBACK is set (tests only);
+      * must appear in the dedicated BLACKBOX_ALLOWLIST (kept separate from the
+        attack-execution target policy).
+    Returns (authorized, reason-if-not). No socket is opened here.
+    """
+    import ipaddress
+
+    try:
+        ip = ipaddress.IPv4Address(target)  # rejects hostnames, IPv6, and malformed; no DNS
+    except (ipaddress.AddressValueError, ValueError):
+        return False, (f"BLACKBOX_TARGET '{target}' is not a valid IPv4 literal "
+                       "(hostnames and DNS resolution are not allowed).")
+    if ip.is_loopback:
+        if not settings.blackbox_allow_loopback:
+            return False, "Loopback target is not allowed outside isolated test fixtures."
+    elif ip.is_global or not ip.is_private:
+        return False, (f"BLACKBOX_TARGET '{target}' is a public/non-private IP; only RFC1918 "
+                       "private lab addresses are allowed.")
+    if target not in settings.blackbox_allowlist_set:
+        return False, (f"BLACKBOX_TARGET '{target}' is not in BLACKBOX_ALLOWLIST — refused "
+                       "(fail-closed). Add the authorized lab IP to BLACKBOX_ALLOWLIST.")
+    return True, ""
+
+
 class BlackboxSource(TelemetrySource):
     """Agentless external probe of the target from Kali — IP only, no credentials,
     nothing installed on the target. Reports reachability / open ports / latency /
-    HTTP banner. It CANNOT see inside the host, so CPU/RAM stay unavailable."""
+    HTTP banner. It CANNOT see inside the host, so CPU/RAM stay unavailable.
+
+    Fail-closed: the target is authorized (IPv4 + RFC1918 + allowlist) BEFORE any
+    socket is opened, and a total time budget bounds the whole sweep."""
 
     name = "blackbox"
 
     def collect(self) -> Telemetry:
+        import time
         from datetime import datetime, timezone
 
         target = settings.blackbox_target.strip()
         if not target:
-            return Telemetry.unavailable("blackbox", "BLACKBOX_TARGET not configured (set the lab IP).")
+            return Telemetry.unavailable("blackbox", "BLACKBOX_TARGET not configured (set an authorized lab IPv4).")
+
+        # Authorize BEFORE opening any socket — fail closed if not authorized.
+        ok, reason = authorize_blackbox_target(target)
+        if not ok:
+            return Telemetry.unavailable("blackbox", reason)
+
         timeout = max(0.2, min(settings.blackbox_timeout_seconds, 10.0))
+        budget = max(0.05, min(settings.blackbox_total_budget_seconds, 300.0))
         ports = settings.blackbox_port_list
 
-        probe = NetworkProbe(target=target, probed_at=datetime.now(timezone.utc).isoformat())
+        probe = NetworkProbe(target=target, probed_at=datetime.now(timezone.utc).isoformat(),
+                             ports_total=len(ports))
         latencies: list[float] = []
         host_responded = False
+        started = time.monotonic()
+        probed = 0
         for port in ports:
+            if time.monotonic() - started > budget:
+                probe.complete = False   # ran out of budget; remaining ports are UNPROBED (not closed)
+                break
             is_open, latency, note = _probe_port(target, port, timeout)
+            probed += 1
             if note in ("open", "refused"):
                 host_responded = True
             if latency is not None:
@@ -261,11 +309,12 @@ class BlackboxSource(TelemetrySource):
             probe.ports.append(PortState(
                 port=port, open=is_open, service=_WELL_KNOWN.get(port), latency_ms=latency,
             ))
+        probe.ports_probed = probed
         probe.reachable = host_responded
         probe.latency_ms = round(min(latencies), 1) if latencies else None
 
-        # HTTP banner on the first open web port, if any.
-        if settings.blackbox_http:
+        # HTTP banner on the first open web port, if any budget remains.
+        if settings.blackbox_http and (time.monotonic() - started) < budget:
             for p in (80, 8080):
                 if p in probe.open_ports:
                     probe.http_status, probe.http_server = _http_probe(target, p, False, timeout)

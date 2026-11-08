@@ -162,7 +162,7 @@ No hardcoded secrets, no tracked `.env`, no unsafe command construction, no targ
 1. **Frontend UI consistency:** no dedicated Hydra/Locust pages (surfaced via Integrations + AI Planner). Non-safety.
 2. **Rearm token wiring:** frontend rearm needs the admin token (owner decision pending).
 3. **Simulation vs real paths coexist:** the legacy `/api/attacks/start` simulation path and `decision.py` remain alongside the real pipeline (intended; documented).
-4. **Uncommitted Stage-5 work in tree:** blackbox/IP-only telemetry (`collector.py` `BlackboxSource`, `schema.py` `NetworkProbe`, `TargetRecon.tsx`) with 7 passing tests — complete and tested but **not committed** and **outside Sections 1–4**.
+4. **Uncommitted Stage-5 work in tree:** blackbox/IP-only telemetry (`collector.py` `BlackboxSource`, `schema.py` `NetworkProbe`, `TargetRecon.tsx`) — complete, tested, and **security-remediated** (dedicated allowlist + IPv4/RFC1918 validation + probe budget; see `docs/CLAUDE_BLACKBOX_SECURITY_REMEDIATION.md`, 23 tests). Still **not committed** and **outside Sections 1–4**.
 
 ---
 

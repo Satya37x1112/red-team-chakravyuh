@@ -55,6 +55,9 @@ export interface NetworkProbe {
   http_status: number | null;
   http_server: string | null;
   probed_at: string | null;
+  complete: boolean;
+  ports_probed: number;
+  ports_total: number;
 }
 
 export interface Decision {

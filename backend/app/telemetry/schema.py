@@ -58,6 +58,11 @@ class NetworkProbe(BaseModel):
     http_status: int | None = None
     http_server: str | None = None
     probed_at: str | None = None
+    # Honest completeness: if the time budget cut the sweep short, `complete` is
+    # False and unprobed ports are simply absent (NOT reported as closed).
+    complete: bool = True
+    ports_probed: int = 0
+    ports_total: int = 0
 
 
 class Telemetry(BaseModel):

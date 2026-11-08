@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (Stage 5.1 — read-only architecture integration audit)
+Last updated: 2026-11-07 (Stage 5.1 audit + blackbox-telemetry security remediation)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **125 passed, 0 failed, 0 skipped, 1 warning** (incl. 7 uncommitted Stage-5 blackbox-telemetry tests); frontend `npm run typecheck` clean + `npm run build` succeeds (71 modules).
+Test status at this update: **141 passed, 0 failed, 0 skipped, 1 warning** (incl. 23 uncommitted Stage-5 blackbox-telemetry tests); frontend `npm run typecheck` clean + `npm run build` succeeds.
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -168,6 +168,12 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 - **Files created:** `docs/CLAUDE_STAGE_5_1_ARCHITECTURE_AUDIT.md`. **Modified:** `docs/CHAKRAVYUH_MASTER_PROGRESS.md`. (No application source changed.)
 - **Results:** backend **125 passed, 0 failed, 0 skipped, 1 warning**; frontend typecheck + build clean. **Security:** 0 CRITICAL/HIGH/MEDIUM open (the Section-4 argv MEDIUM was already remediated); LOW: brief RAM-backed 0600 cred file (accepted), rearm token wiring (owner decision); `.env` untracked, no secrets in tree, no argv secrets. **Component statuses:** Hydra / Locust / Remote-Access / Gateway / Kill-switch / Centralized-AI = **VERIFIED BY CODE + TESTS**; Frontend = **VERIFIED BY CODE ONLY**.
 - **Auditor conclusions:** all three modules genuinely share the centralized architecture; **no Gateway bypass**; kill switch covers all managed integrations; AI planner genuinely centralized. **Live-unverified:** real Hydra/Locust/NetExec/WinRM against a target (NOT VERIFIED), paid-model AI (BLOCKED — credits). **Note:** uncommitted Stage-5 blackbox/IP-only telemetry + Target Recon page present in the tree (7 tests pass), outside the 1–4 audit scope.
+
+### Stage 5 (in progress, uncommitted) — Blackbox/IP-only telemetry + security remediation
+- **Objective:** agentless "from the IP" telemetry (no creds, nothing on target) + a Target Recon page (IP → open ports → telemetry), then remediate its security review findings.
+- **Work:** `BlackboxSource` (bounded TCP connect-scan + HTTP banner) with honest labelling (scope `windows_target_external`, CPU/RAM stay None); `TargetRecon.tsx`. **Security remediation:** MEDIUM-1 (dedicated `BLACKBOX_ALLOWLIST`, fail-closed, no socket before authorization, config-only — not AI/API/frontend reachable); LOW-1 (`ipaddress` IPv4-only + RFC1918-only + no DNS + loopback test-flag only); LOW-2 (total probe time budget; incomplete sweeps reported honestly, never invented as closed).
+- **Files:** `backend/app/{config.py,telemetry/collector.py,telemetry/schema.py,agent/context.py,.env.example}`, `backend/tests/test_blackbox_telemetry.py` (23 tests, **mocked sockets**), `frontend/src/{types.ts,App.tsx,components/Layout.tsx,pages/TargetRecon.tsx}`, docs.
+- **Results:** 141 passed; frontend typecheck + build clean. **No target contacted, no real port discovery, blackbox not enabled.** Status: **MOCK/CODE VERIFIED**; live probe vs a real target **NOT VERIFIED**. **Uncommitted** (preserved; not committed/pushed). See `docs/CLAUDE_BLACKBOX_SECURITY_REMEDIATION.md`.
 
 ## E. Remaining Work
 
