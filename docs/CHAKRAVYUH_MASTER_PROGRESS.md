@@ -2,9 +2,9 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (Stage 5.1 audit + blackbox-telemetry security remediation)
+Last updated: 2026-11-07 (Stage 5.4 — final documentation & demonstration package; planned roadmap COMPLETE)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
-Test status at this update: **141 passed, 0 failed, 0 skipped, 1 warning** (incl. 23 uncommitted Stage-5 blackbox-telemetry tests); frontend `npm run typecheck` clean + `npm run build` succeeds.
+Test status at this update: **140 passed, 0 failed, 0 skipped, 1 deselected (live OpenRouter), 1 warning**; frontend `npm run typecheck` clean + `npm run build` succeeds. (Full run with the live test = 141 passed.)
 
 Status vocabulary (exact): `COMPLETED AND TESTED` · `IMPLEMENTED BUT NOT TESTED` · `PARTIALLY COMPLETED` · `BLOCKED` · `NOT STARTED`.
 Honesty rules followed: no invented percentages; untested integrations are not marked verified; simulation ≠ real execution; documentation ≠ implementation; no API claimed working without a test.
@@ -174,6 +174,34 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 - **Work:** `BlackboxSource` (bounded TCP connect-scan + HTTP banner) with honest labelling (scope `windows_target_external`, CPU/RAM stay None); `TargetRecon.tsx`. **Security remediation:** MEDIUM-1 (dedicated `BLACKBOX_ALLOWLIST`, fail-closed, no socket before authorization, config-only — not AI/API/frontend reachable); LOW-1 (`ipaddress` IPv4-only + RFC1918-only + no DNS + loopback test-flag only); LOW-2 (total probe time budget; incomplete sweeps reported honestly, never invented as closed).
 - **Files:** `backend/app/{config.py,telemetry/collector.py,telemetry/schema.py,agent/context.py,.env.example}`, `backend/tests/test_blackbox_telemetry.py` (23 tests, **mocked sockets**), `frontend/src/{types.ts,App.tsx,components/Layout.tsx,pages/TargetRecon.tsx}`, docs.
 - **Results:** 141 passed; frontend typecheck + build clean. **No target contacted, no real port discovery, blackbox not enabled.** Status: **MOCK/CODE VERIFIED**; live probe vs a real target **NOT VERIFIED**. **Uncommitted** (preserved; not committed/pushed). See `docs/CLAUDE_BLACKBOX_SECURITY_REMEDIATION.md`.
+
+### Stage 5.2 — Complete End-to-End Mock Integration Verification (verification-only)
+- **Objective:** verify the whole workflow across all three modules + centralized AI + telemetry + dashboard, with mocks only; no source changes, no commits, no target/live calls.
+- **Work:** traced and test-mapped `Objective → Context → Planner → Schema → Gateway → Registry → Dispatcher → Adapter → Analysis → Feedback → Audit → Dashboard`; ran the full suite with the one live-OpenRouter test transparently deselected; mapped each module's full mocked loop (`test_operation_loop`, `test_remote_access::test_full_loop_remote_access`), feedback (`test_feedback`), cross-module singletons + no-bypass, blackbox (mocked sockets), frontend checks.
+- **Files created:** `docs/CLAUDE_STAGE_5_2_E2E_VERIFICATION.md`. **Modified:** `docs/CHAKRAVYUH_MASTER_PROGRESS.md`. No application source changed.
+- **Results:** backend **140 passed, 0 failed, 0 skipped, 1 deselected (live OpenRouter), 1 warning**; frontend typecheck + build clean. One planner / schema / gateway / registry / kill switch confirmed; **no Gateway bypass**; kill switch stops managed ops; unsafe plans rejected before dispatch; blackbox authorized + bounded; results/feedback persisted to `Operation`/`OperationIteration`/`AuditRecord` (secret-masked).
+- **Statuses:** three module E2E loops, feedback loop, cross-module security, blackbox telemetry = **VERIFIED END-TO-END BY MOCKS**; frontend = **VERIFIED BY CODE ONLY**. **Live-unverified:** real Hydra/Locust/NetExec/WinRM/blackbox vs a target (**NOT VERIFIED**), paid-model AI (**BLOCKED** — credits), browser click-through (**NOT VERIFIED**).
+
+### Stage 5.3 — Deployment Readiness & Operational Verification (verification + docs)
+- **Objective:** verify Kali-native deployment readiness — startup/shutdown, config, dependencies, security, recovery — no source changes, no commits, no target/live calls.
+- **Work:** environment + native-dependency inventory; startup/shutdown + bind/CORS/proxy inspection; config fail-closed-default audit; security/operational review; recovery mapping to offline tests; frontend checks; readiness matrix.
+- **Files created:** `docs/CLAUDE_STAGE_5_3_DEPLOYMENT_READINESS.md`. **Modified:** `docs/CHAKRAVYUH_MASTER_PROGRESS.md`. No application source changed.
+- **Results:** backend **140 passed / 0 failed / 0 skipped / 1 deselected (live OpenRouter) / 1 warning**; frontend typecheck + build clean. Deps AVAILABLE (python 3.13, node v22 at ~/.local, hydra/nxc/evil-winrm/locust, /dev/shm). Defaults fail-closed; `.env` untracked; kill switch not-engaged at startup; SQLite auto-init.
+- **Readiness matrix:** BACKEND / SAFETY GATEWAY / KILL SWITCH / AUDIT / CONFIGURATION = **READY**; STARTUP / SHUTDOWN / FRONTEND / DATABASE / AI / HYDRA / LOCUST / REMOTE ACCESS / TELEMETRY / SECURITY / RECOVERY = **READY WITH LIMITATIONS**. **Live-unverified:** real Hydra/Locust/NetExec/WinRM/blackbox vs a target, browser click-through; paid-model AI **BLOCKED** (credits). Operational gaps (non-blocking): no startup script, Node PATH not persistent, no duplicate-process guard, DB-outage recovery untested, rearm UI token wiring.
+- **Verdict:** READY WITH LIMITATIONS for demonstration preparation; NOT YET live-verified against a real target.
+
+### Stage 5.4 — Final Documentation & Demonstration Preparation (docs only; planned roadmap COMPLETE)
+- **Objective:** produce the complete final documentation + a repeatable mock demonstration package from the actual code. No new capability, no source change, no commits, no target/live calls.
+- **Deliverables created (reviewed against the code):** `docs/CHAKRAVYUH_FINAL_ARCHITECTURE.md`, `CHAKRAVYUH_FINAL_FEATURE_MATRIX.md`, `CHAKRAVYUH_DEMONSTRATION_GUIDE.md`, `CHAKRAVYUH_KALI_SETUP.md`, `CHAKRAVYUH_TECHNICAL_PRESENTATION_NOTES.md`, `CHAKRAVYUH_FINAL_PROJECT_REPORT.md`. **Updated:** this file.
+- **Consistency:** API paths, file paths, and test counts in the docs were grounded in a live route/file/test inventory (41 API routes; 141 tests collected, 140 pass offline + 1 live-OpenRouter deselected; frontend typecheck+build clean). No secrets included; no fabricated results; the third module is explicitly documented as NOT a conventional RAT.
+- **Roadmap status:** the planned Sections 1–4 + Stages 5.1–5.4 are **documented and complete at the mock/code level**. The project is **READY WITH LIMITATIONS for demonstration preparation**; it is **NOT production-ready** and **NOT live-verified** against a real target.
+
+**Separation of concerns (final):**
+- **Completed implementation:** centralized AI planner, 3 modules, Safety Gateway, allowlists, registry, kill switch, audit, telemetry (none/local/winrm/blackbox), dashboard, DB, tests, docs.
+- **Mock-verified:** the full end-to-end pipeline + all three module loops + safety behaviours + blackbox telemetry (141 tests).
+- **Live-unverified:** real Hydra/Locust/NetExec/WinRM/blackbox vs a target; browser click-through; DB-outage recovery.
+- **Blocked:** paid-model AI (OpenRouter credits).
+- **Future improvements:** supervised live run; async execution; live WS streaming; dedicated Hydra/Locust pages; rearm token wiring; frontend tests; persistent registry; start script; Alembic; WMI telemetry.
 
 ## E. Remaining Work
 
