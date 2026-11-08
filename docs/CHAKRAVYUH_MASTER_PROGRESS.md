@@ -2,7 +2,7 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-07 (Stage 5.4 — final documentation & demonstration package; planned roadmap COMPLETE)
+Last updated: 2026-11-08 (New scope: network-architecture planning — Phase 0 audit + lab-network feasibility + attacker-side assessment, read-only)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
 Test status at this update: **140 passed, 0 failed, 0 skipped, 1 deselected (live OpenRouter), 1 warning**; frontend `npm run typecheck` clean + `npm run build` succeeds. (Full run with the live test = 141 passed.)
 
@@ -202,6 +202,13 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 - **Live-unverified:** real Hydra/Locust/NetExec/WinRM/blackbox vs a target; browser click-through; DB-outage recovery.
 - **Blocked:** paid-model AI (OpenRouter credits).
 - **Future improvements:** supervised live run; async execution; live WS streaming; dedicated Hydra/Locust pages; rearm token wiring; frontend tests; persistent registry; start script; Alembic; WMI telemetry.
+
+### New Scope — Network Architecture Planning (read-only; NO implementation yet)
+This new master scope (OmniRoute AI gateway, network isolation, controlled proxy framework, Nmap discovery, operator-dashboard expansion) is in the **audit/feasibility** stage only — no code written, no network changed, no commits.
+- **Phase 0 platform audit** (`docs/CLAUDE_PHASE_0_PLATFORM_AUDIT.md`): existing platform preserved + verified; new scope is mostly greenfield; identified owner decisions. Key findings: no nmap/proxy/network/OmniRoute code yet; OmniRoute = Node/npm OpenAI-compatible gateway (BYO keys, not free inference); honest proxy compatibility (Hydra/Nmap **UNSUPPORTED** via ordinary proxy).
+- **Lab-network feasibility** (`docs/CHAKRAVYUH_NETWORK_ISOLATION_ARCHITECTURE.md`): dedicated-Ethernet design (Options A–D) **superseded** by the owner's same-hotspot decision (§12). Same-hotspot recommendation = **keep VMware NAT**; decisive factor = hotspot **client isolation** (owner to verify); honest attribution caveat (target sees the **host's hotspot IP**, not Kali's, under NAT).
+- **Attacker-side assessment** (`docs/CHAKRAVYUH_ATTACKER_NETWORK_ASSESSMENT.md`, 2026-11-08, read-only): Kali `eth0 192.168.176.131/24`, gw `192.168.176.2` (VMware OUI) → **VMware NAT = PARTIALLY VERIFIED** (strongly consistent; host-side confirmation pending); internet + DNS + npm registry **VERIFIED** (OmniRoute download-ready, nothing installed); physical host Wi-Fi/hotspot IP **NOT ACCESSIBLE FROM GUEST**. No config changed.
+- **Status:** `REQUIRES OWNER DECISION` on network config + the new-scope implementation order. Existing Sections 1–4 + Stages 5.x remain **IMPLEMENTED / MOCK VERIFIED** and untouched.
 
 ## E. Remaining Work
 
