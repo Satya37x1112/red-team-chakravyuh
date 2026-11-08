@@ -1,6 +1,8 @@
 """Runtime configuration, loaded from environment / .env."""
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -172,6 +174,63 @@ class Settings(BaseSettings):
     @property
     def fallback_models(self) -> list[str]:
         return [m.strip() for m in self.openrouter_fallback_models.split(",") if m.strip()]
+
+    # ---- Stage 1: generic LLM provider config (OpenAI-compatible gateways) ----
+    # The centralized LLM client resolves these; empty values fall back to the
+    # OpenRouter settings above, so existing OpenRouter deployments are unchanged.
+    # Supported providers: openrouter | openai_compatible | omniroute (all speak
+    # the OpenAI /v1/chat/completions format). LLM_API_KEY is a SECRET — never
+    # returned by any API, logged, or put in an exception/audit record.
+    llm_provider: str = "openrouter"
+    llm_base_url: str = ""      # override; empty = provider default / OPENROUTER_BASE_URL
+    llm_api_key: str = ""       # override; empty = OPENROUTER_API_KEY (SECRET)
+    llm_model: str = ""         # override; empty = OPENROUTER_MODEL
+    llm_timeout: int = 60       # bounded request timeout (clamped 5–300s)
+
+    LLM_PROVIDERS: ClassVar[tuple[str, ...]] = ("openrouter", "openai_compatible", "omniroute")
+
+    @property
+    def llm_effective_base_url(self) -> str:
+        if self.llm_base_url.strip():
+            return self.llm_base_url.strip().rstrip("/")
+        # openrouter has a built-in default; the others REQUIRE an explicit base URL.
+        return self.openrouter_base_url.rstrip("/") if self.llm_provider == "openrouter" else ""
+
+    @property
+    def llm_effective_api_key(self) -> str:
+        return self.llm_api_key or self.openrouter_api_key
+
+    @property
+    def llm_effective_model(self) -> str:
+        return self.llm_model.strip() or self.openrouter_model
+
+    @property
+    def llm_effective_timeout(self) -> int:
+        try:
+            t = int(self.llm_timeout)
+        except (TypeError, ValueError):
+            t = 60
+        return max(5, min(t, 300))
+
+    @property
+    def llm_effective_fallback_models(self) -> list[str]:
+        # OpenRouter free-tier fallbacks only apply to the openrouter provider and
+        # only when no explicit override model was chosen.
+        if self.llm_provider == "openrouter" and not self.llm_model.strip():
+            return self.fallback_models
+        return []
+
+    def llm_config_validity(self) -> tuple[bool, str]:
+        """(valid, reason) for the current generic-LLM config. No secret in the text."""
+        if self.llm_provider not in self.LLM_PROVIDERS:
+            return False, f"invalid LLM_PROVIDER '{self.llm_provider}' (use {', '.join(self.LLM_PROVIDERS)})"
+        if not self.llm_effective_base_url:
+            return False, f"no base URL for provider '{self.llm_provider}' (set LLM_BASE_URL)"
+        if not self.llm_effective_api_key:
+            return False, "no API key configured (set LLM_API_KEY or OPENROUTER_API_KEY)"
+        if not self.llm_effective_model:
+            return False, "no model configured (set LLM_MODEL or OPENROUTER_MODEL)"
+        return True, "configuration complete"
 
 
 settings = Settings()

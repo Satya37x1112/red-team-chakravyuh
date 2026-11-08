@@ -374,3 +374,31 @@ export interface RemoteAccessResult {
   execution_id?: string;
   execution_state?: string;
 }
+
+// --- Stage 1: generic LLM provider config ---
+export interface LlmConfig {
+  provider: string;
+  supported_providers: string[];
+  base_url: string | null;
+  model: string | null;
+  timeout: number;
+  api_key_configured: boolean;
+  config_valid: boolean;
+  reason: string;
+  persistent: boolean;
+}
+
+export interface LlmTestResult {
+  provider: string;
+  base_url: string | null;
+  model: string | null;
+  timeout: number;
+  api_key_configured: boolean;
+  config_valid: boolean;
+  gateway_reachable: boolean | null;
+  auth_ok: boolean | null;
+  inference_ok: boolean;
+  reply_excerpt: string | null;
+  reason: string;
+  errors: string[];
+}

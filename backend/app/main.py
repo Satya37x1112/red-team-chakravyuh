@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.central import router as central_router
 from .api.execution import router as execution_router
 from .api.integrations import router as integrations_router
+from .api.llm import router as llm_router
 from .api.operations import router as operations_router
 from .api.routes import router
 from .config import settings
@@ -41,6 +42,7 @@ app.include_router(integrations_router)
 app.include_router(central_router)
 app.include_router(execution_router)
 app.include_router(operations_router)
+app.include_router(llm_router)
 
 
 @app.get("/")

@@ -9,6 +9,8 @@ import type {
   HistoryPoint,
   IntegrationStatus,
   Kind,
+  LlmConfig,
+  LlmTestResult,
   OperationDetail,
   OperationPlanPreview,
   OperationSummary,
@@ -83,6 +85,12 @@ export const api = {
     post("/api/operations", body).then(json<OperationDetail>),
   listOperations: () => fetch("/api/operations").then(json<OperationSummary[]>),
   getOperation: (id: string) => fetch(`/api/operations/${id}`).then(json<OperationDetail>),
+
+  // Stage 1: generic LLM provider config (API key never returned by the backend)
+  llmConfig: () => fetch("/api/llm/config").then(json<LlmConfig>),
+  updateLlmConfig: (body: { provider?: string; base_url?: string; model?: string; timeout?: number; api_key?: string }) =>
+    post("/api/llm/config", body).then(json<LlmConfig>),
+  testLlm: () => post("/api/llm/test").then(json<LlmTestResult>),
 
   // Section 4: Credentialed Remote Access (RAT alternative)
   remoteAccessStatus: () => fetch("/api/integrations/remote_access").then(json<RemoteAccessStatus>),

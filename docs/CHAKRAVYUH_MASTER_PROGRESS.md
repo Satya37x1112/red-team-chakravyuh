@@ -2,7 +2,7 @@
 
 **Permanent cumulative development record. Updated at the end of every section. Previous history is never erased.**
 
-Last updated: 2026-11-08 (New scope: network-architecture planning — Phase 0 audit + lab-network feasibility + attacker-side assessment, read-only)
+Last updated: 2026-11-08 (New-scope Stage 1 — generic LLM provider configuration implemented)
 Repository: `/home/kali/AI_red_Team/red-team-chakravyuh/`
 Test status at this update: **140 passed, 0 failed, 0 skipped, 1 deselected (live OpenRouter), 1 warning**; frontend `npm run typecheck` clean + `npm run build` succeeds. (Full run with the live test = 141 passed.)
 
@@ -209,6 +209,13 @@ This new master scope (OmniRoute AI gateway, network isolation, controlled proxy
 - **Lab-network feasibility** (`docs/CHAKRAVYUH_NETWORK_ISOLATION_ARCHITECTURE.md`): dedicated-Ethernet design (Options A–D) **superseded** by the owner's same-hotspot decision (§12). Same-hotspot recommendation = **keep VMware NAT**; decisive factor = hotspot **client isolation** (owner to verify); honest attribution caveat (target sees the **host's hotspot IP**, not Kali's, under NAT).
 - **Attacker-side assessment** (`docs/CHAKRAVYUH_ATTACKER_NETWORK_ASSESSMENT.md`, 2026-11-08, read-only): Kali `eth0 192.168.176.131/24`, gw `192.168.176.2` (VMware OUI) → **VMware NAT = PARTIALLY VERIFIED** (strongly consistent; host-side confirmation pending); internet + DNS + npm registry **VERIFIED** (OmniRoute download-ready, nothing installed); physical host Wi-Fi/hotspot IP **NOT ACCESSIBLE FROM GUEST**. No config changed.
 - **Status:** `REQUIRES OWNER DECISION` on network config + the new-scope implementation order. Existing Sections 1–4 + Stages 5.x remain **IMPLEMENTED / MOCK VERIFIED** and untouched.
+
+### New-Scope Stage 1 — Generic LLM Provider Configuration (IMPLEMENTED, MOCK VERIFIED)
+- **Objective:** make the centralized LLM client provider-independent (OpenRouter / OmniRoute / any OpenAI-compatible gateway) by config; no rebuild, no per-module AI clients, Safety Gateway untouched. No target needed; OmniRoute NOT installed.
+- **Files created:** `backend/app/api/llm.py`, `backend/tests/test_llm_config.py`, `frontend/src/pages/Settings.tsx`, `docs/CHAKRAVYUH_GENERIC_LLM_CONFIGURATION.md`. **Modified:** `backend/app/config.py` (LLM_* settings + effective resolution + validity), `backend/app/integrations/_llm.py` (provider abstraction + sanitized errors + connection test), `backend/app/main.py` (llm router), `backend/.env.example`, `frontend/src/{api.ts,types.ts,App.tsx,components/Layout.tsx}`.
+- **Design:** `LLM_PROVIDER/BASE_URL/API_KEY/MODEL/TIMEOUT` default to the `OPENROUTER_*` values (OpenRouter unchanged). API key is write-only (never returned/logged/echoed; in-memory runtime, `.env` for durability). `POST /api/llm/test` runs a harmless real inference with staged, sanitized results.
+- **Results:** backend **165 passed, 0 failed, 0 skipped, 1 deselected (live OpenRouter), 1 warning** (25 new LLM-config tests, all HTTP mocked); frontend typecheck + build clean.
+- **Statuses:** OpenRouter compatibility = **MOCK VERIFIED** (regression green); generic OpenAI-compatible + OmniRoute **config path** = **IMPLEMENTED, NOT LIVE VERIFIED** (OmniRoute not installed); secret handling = **MOCK VERIFIED**. No commit/push; existing architecture preserved.
 
 ## E. Remaining Work
 
