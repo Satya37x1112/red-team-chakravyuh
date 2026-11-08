@@ -1,3 +1,8 @@
+> ## ⚠️ UPDATE 2026-11-08 — Same-hotspot constraint (SUPERSEDES the dedicated-Ethernet recommendation below)
+> The owner has decided **both laptops stay on the SAME mobile hotspot** (no dedicated Ethernet, no separate router). The dedicated-Ethernet design (Sections 1–11 below) is **retained for history but no longer the plan**. The same-hotspot reassessment is in **Section 12**.
+
+---
+
 # CYBER CHAKRAVYUH — Isolated Lab Network: Feasibility Assessment
 
 **Author:** Implementation engineer (Claude Code, on Kali) — read-only assessment
@@ -137,3 +142,64 @@ Over this design the target sees Kali's source as **`10.10.10.10`** (the lab NIC
 A **dual-homed Kali (NAT NIC for internet + bridged NIC for an isolated lab Ethernet)** cleanly satisfies all goals: dedicated lab path, internet kept separate for OmniRoute, and no target exposure to external networks. **Recommended topology: direct Ethernet (Option A)** for a two-node lab. The only hardware needed is a spare Ethernet port (or a USB dongle) + a cable. **Feasibility: FEASIBLE** — pending the owner's host-side configuration, which I will not perform automatically.
 
 **Status: feasibility report delivered. Awaiting owner approval before any configuration. No source changed, no settings changed, no live testing.**
+
+---
+
+# 12. REASSESSMENT — Both laptops on the SAME mobile hotspot (current plan)
+
+**Constraint (owner-updated 2026-11-08):** attacker host + Windows target both on the **same mobile hotspot**; internet (OmniRoute) stays on that hotspot; Kali must reach the authorized Windows target; accurate source-IP attribution; no silent direct fallback; Safety Gateway unchanged. READ-ONLY assessment — no settings changed, no live scans.
+
+## 12.1 What decides everything: mobile-hotspot CLIENT ISOLATION
+Most phone hotspots enable **client/AP isolation** (clients can't talk to each other), by default or with no toggle. If isolation is **ON**, the attacker host **cannot reach the Windows laptop at all** — and therefore **neither NAT nor bridged** will let Kali reach the target. This is the single most important thing to verify, and it is **phone-side** (not visible from the Kali guest).
+- **Owner must verify (read-only):** from the attacker **host**, `ping <windows-hotspot-IP>`. If it replies → isolation is OFF (lab is possible). If it times out → isolation is ON → **this hotspot cannot host the lab**; a different hotspot/phone, or a tethered USB/Ethernet path, would be needed.
+
+## 12.2 Can VMware bridge Kali to the host Wi-Fi?
+VMware Workstation *can* select "Bridged" on a Wi-Fi adapter, **but bridged-over-Wi-Fi is unreliable**: many Wi-Fi drivers/APs reject frames whose source MAC differs from the associated station, and mobile hotspots frequently drop or isolate such traffic. **Do not assume bridged works over the hotspot** (as the owner noted). It may work on some phones and fail on others; it must be tested, and it is not the simplest reliable option.
+
+## 12.3 NAT vs Bridged over the hotspot — honest comparison
+
+| Aspect | **NAT (current, recommended)** | **Bridged over Wi-Fi** |
+|---|---|---|
+| Kali → Windows reachability | ✅ Works **outbound** *if* hotspot isolation is OFF (Kali's traffic is SNAT'd through the host's hotspot IP) | ⚠️ Only if the Wi-Fi driver+hotspot allow a 2nd MAC **and** isolation is OFF — often unreliable |
+| **Source IP seen at the target** | **The HOST's hotspot IP** (VMware NAT translates Kali → host). *Not* Kali's own IP. | **Kali's own bridged IP** (a hotspot-subnet address) — cleaner attribution |
+| Windows → Kali (inbound) | ❌ Not without host port-forwarding | ✅ Possible (Kali is a peer) |
+| Reliability | ✅ High (already working for internet today) | ⚠️ Low–variable over a mobile hotspot |
+| Internet / OmniRoute | ✅ Same hotspot via the default route | ✅ Same hotspot |
+| Setup changes | **None** (already NAT) | Add a bridged adapter + driver/MAC luck |
+
+## 12.4 Recommended simplest reliable architecture
+**Keep VMware NAT (no change).** Kali reaches the authorized Windows target **outbound** through the host's hotspot connection; OmniRoute/internet use the same path. This is the simplest and already-working design — **provided hotspot client isolation is OFF** (12.1).
+
+```
+        Mobile hotspot (one subnet)
+      ┌───────────────┬───────────────┐
+ Attacker host Wi-Fi            Windows target Wi-Fi
+   (hotspot IP H)                 (hotspot IP W)
+      │  VMware NAT (vmnet8, 192.168.176.0/24)
+   Kali VM eth0 192.168.176.131  ──SNAT──► src=H ──► target W
+```
+
+**Honest attribution caveat (must be surfaced, not hidden):** with NAT, the target observes the **host's hotspot IP (H)** as the source, **not** Kali's `192.168.176.131`. The future IP-Telemetry Manager must report the **measured** source as "host hotspot IP (NAT egress)", clearly labelled, and must **never claim** Kali's own IP reached the target when it did not.
+
+**If true Kali-IP attribution is a hard requirement:** the only same-hotspot way is **bridged Wi-Fi** — but it must be **tested first** (12.2) and may simply not work on this hotspot. Recommend trying NAT first; attempt bridged only if the owner specifically needs Kali's IP at the target and accepts the reliability risk.
+
+## 12.5 Host-mediated route (fallback if bridging unavailable)
+NAT *is* the host-mediated route: Kali's lab traffic is forwarded/translated by the host's Wi-Fi stack onto the hotspot. No extra configuration is needed. The Network subsystem will **verify** the approved path (Kali → NAT → host Wi-Fi → target) before each operation and **fail closed** if the target is unreachable on that path — it will **never** silently switch to another route.
+
+## 12.6 Source-IP attribution — how we verify (measured, not inferred)
+- **On Kali:** `ip route get <target-IP>` (confirms egress eth0/NAT) + `sudo tcpdump -i eth0 host <target-IP>` during an approved op.
+- **On the target (best evidence):** Windows firewall log / `netstat -n` / Event Viewer showing the **observed source** = the host's hotspot IP (H).
+- **On the hotspot (if the phone shows connected clients):** confirms H and W are both present and can talk.
+- The telemetry records which is **measured** vs **inferred**, with an evidence-confidence field.
+
+## 12.7 Isolation & no-exposure note (honest)
+On a shared hotspot the Windows target is **on the internet** (it reaches the hotspot's WAN) — this is **less isolated** than a dedicated lab network. To reduce exposure during labs, the owner can disable other connectivity on the Windows laptop and restrict its firewall to the host's hotspot IP. True "no external exposure" is only achievable with the dedicated-network design (Section 1–11); the same-hotspot design trades isolation for the single-hotspot convenience the owner chose. This trade-off is disclosed, not hidden.
+
+## 12.8 Owner action items (host/phone/Windows — I will NOT change these automatically)
+1. **Verify hotspot client isolation (critical):** from the attacker host, `ping <windows-hotspot-IP>`. Reply = OK; timeout = this hotspot can't host the lab.
+2. Tell me the **Windows target's hotspot IP** and confirm it's the authorized target → I'll set the Safety Gateway / allowlists to it.
+3. Decide attribution preference: **NAT (host IP seen, reliable)** — recommended — or test **bridged Wi-Fi (Kali IP seen, may fail)**.
+4. (Labs) harden the Windows target's firewall to only the host hotspot IP to limit exposure.
+
+## 12.9 Conclusion
+**Simplest reliable same-hotspot architecture = keep VMware NAT (no change needed).** Feasibility is **conditional on hotspot client isolation being OFF** (owner must verify). Attribution will honestly show the **host's hotspot IP**, not Kali's, unless bridged Wi-Fi is tested and works. **No settings were changed; awaiting owner approval and the two inputs in 12.8 (isolation result + target IP) before any configuration.**
