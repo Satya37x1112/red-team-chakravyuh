@@ -260,6 +260,104 @@ def authorize_blackbox_target(target: str) -> tuple[bool, str]:
                        "(fail-closed). Add the authorized lab IP to BLACKBOX_ALLOWLIST.")
     return True, ""
 
+def run_probe(target: str):
+    """Run the agentless TCP-connect probe against an ALREADY-AUTHORIZED target.
+    IP only, no credentials, nothing installed on the target. Returns Telemetry."""
+    import time
+    from datetime import datetime, timezone
+
+    timeout = max(0.2, min(settings.blackbox_timeout_seconds, 10.0))
+    budget = max(0.05, min(settings.blackbox_total_budget_seconds, 300.0))
+    ports = settings.blackbox_port_list
+
+    probe = NetworkProbe(target=target, probed_at=datetime.now(timezone.utc).isoformat(),
+                         ports_total=len(ports))
+    latencies: list[float] = []
+    host_responded = False
+    started = time.monotonic()
+    probed = 0
+    for port in ports:
+        if time.monotonic() - started > budget:
+            probe.complete = False   # ran out of budget; remaining ports are UNPROBED (not closed)
+            break
+        is_open, latency, note = _probe_port(target, port, timeout)
+        probed += 1
+        if note in ("open", "refused"):
+            host_responded = True
+        if latency is not None:
+            latencies.append(latency)
+        if is_open:
+            probe.open_ports.append(port)
+        probe.ports.append(PortState(
+            port=port, open=is_open, service=_WELL_KNOWN.get(port), latency_ms=latency,
+        ))
+    probe.ports_probed = probed
+    probe.reachable = host_responded
+    probe.latency_ms = round(min(latencies), 1) if latencies else None
+
+    if settings.blackbox_http and (time.monotonic() - started) < budget:
+        for p in (80, 8080):
+            if p in probe.open_ports:
+                probe.http_status, probe.http_server = _http_probe(target, p, False, timeout)
+                break
+        if probe.http_status is None and 443 in probe.open_ports:
+            probe.http_status, probe.http_server = _http_probe(target, 443, True, timeout)
+
+    t = Telemetry(source="blackbox", available=True)
+    t.hostname = target
+    t.network = probe
+    return t
+
+
+def _tailnet_peer_ips() -> set[str]:
+    """Current tailnet peer IPv4s from `tailscale status` (empty on any failure)."""
+    import subprocess
+    try:
+        out = subprocess.run(["tailscale", "status"], capture_output=True, text=True, timeout=8)
+        ips: set[str] = set()
+        for line in out.stdout.splitlines():
+            tok = line.split()
+            if tok and tok[0].count(".") == 3:
+                ips.add(tok[0])
+        return ips
+    except Exception:
+        return set()
+
+
+def authorize_recon_target(target: str) -> tuple[bool, str]:
+    """Fail-closed authorization for an on-demand recon probe entered in the UI.
+
+    Allows ONLY: a valid IPv4 that is (a) RFC1918 private lab space, OR (b) a
+    current Tailscale PEER in the CGNAT range 100.64.0.0/10 (i.e. one of your own
+    tailnet devices). PUBLIC/global IPs are always rejected, so the dashboard can
+    never be pointed at an arbitrary internet host. This is non-destructive recon;
+    the operator entering the IP is the explicit per-run authorization (audited)."""
+    import ipaddress
+    target = (target or "").strip()
+    try:
+        ip = ipaddress.IPv4Address(target)
+    except (ipaddress.AddressValueError, ValueError):
+        return False, f"'{target}' is not a valid IPv4 literal (no hostnames/DNS/IPv6)."
+    if ip.is_loopback:
+        return False, "Loopback is not a valid recon target."
+    if ip.is_private:
+        return True, ""  # RFC1918 lab space
+    # Tailscale CGNAT range: allow only if it is an actual current tailnet peer.
+    if ipaddress.IPv4Address("100.64.0.0") <= ip <= ipaddress.IPv4Address("100.127.255.255"):
+        if target in _tailnet_peer_ips():
+            return True, ""
+        return False, f"'{target}' is in the Tailscale range but is not a current tailnet peer."
+    return False, f"'{target}' is a public/non-lab IP; only RFC1918 or your tailnet peers may be probed."
+
+
+def probe_on_demand(target: str):
+    """Authorize + probe a UI-supplied target. Returns Telemetry (unavailable on refusal)."""
+    ok, reason = authorize_recon_target(target)
+    if not ok:
+        return Telemetry.unavailable("blackbox", reason)
+    return run_probe(target.strip())
+
+
 
 class BlackboxSource(TelemetrySource):
     """Agentless external probe of the target from Kali — IP only, no credentials,
@@ -284,49 +382,7 @@ class BlackboxSource(TelemetrySource):
         if not ok:
             return Telemetry.unavailable("blackbox", reason)
 
-        timeout = max(0.2, min(settings.blackbox_timeout_seconds, 10.0))
-        budget = max(0.05, min(settings.blackbox_total_budget_seconds, 300.0))
-        ports = settings.blackbox_port_list
-
-        probe = NetworkProbe(target=target, probed_at=datetime.now(timezone.utc).isoformat(),
-                             ports_total=len(ports))
-        latencies: list[float] = []
-        host_responded = False
-        started = time.monotonic()
-        probed = 0
-        for port in ports:
-            if time.monotonic() - started > budget:
-                probe.complete = False   # ran out of budget; remaining ports are UNPROBED (not closed)
-                break
-            is_open, latency, note = _probe_port(target, port, timeout)
-            probed += 1
-            if note in ("open", "refused"):
-                host_responded = True
-            if latency is not None:
-                latencies.append(latency)
-            if is_open:
-                probe.open_ports.append(port)
-            probe.ports.append(PortState(
-                port=port, open=is_open, service=_WELL_KNOWN.get(port), latency_ms=latency,
-            ))
-        probe.ports_probed = probed
-        probe.reachable = host_responded
-        probe.latency_ms = round(min(latencies), 1) if latencies else None
-
-        # HTTP banner on the first open web port, if any budget remains.
-        if settings.blackbox_http and (time.monotonic() - started) < budget:
-            for p in (80, 8080):
-                if p in probe.open_ports:
-                    probe.http_status, probe.http_server = _http_probe(target, p, False, timeout)
-                    break
-            if probe.http_status is None and 443 in probe.open_ports:
-                probe.http_status, probe.http_server = _http_probe(target, 443, True, timeout)
-
-        t = Telemetry(source="blackbox", available=True)
-        t.hostname = target            # the IP/host we probed (external identity)
-        t.network = probe
-        # CPU/memory/processes intentionally stay None — blackbox cannot see inside.
-        return t
+        return run_probe(target)
 
 
 # --- local helpers -----------------------------------------------------------

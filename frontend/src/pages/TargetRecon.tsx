@@ -15,6 +15,30 @@ export function TargetRecon() {
   const { telemetry: live } = useLiveContext();
   const [snap, setSnap] = useState<Telemetry | null>(live);
   const [busy, setBusy] = useState(false);
+  const [ip, setIp] = useState("");
+  const [probeBusy, setProbeBusy] = useState(false);
+  const [socNote, setSocNote] = useState<string | null>(null);
+  const [sourceIp, setSourceIp] = useState<string | null>(null);
+  const [probeErr, setProbeErr] = useState<string | null>(null);
+
+  const probeIp = async () => {
+    const target = ip.trim();
+    if (!target) return;
+    setProbeBusy(true);
+    setProbeErr(null);
+    setSocNote(null);
+    try {
+      const r = await api.probeTarget(target);
+      setSnap(r as unknown as Telemetry);
+      setSocNote((r.soc_note as string) ?? null);
+      setSourceIp((r.source_ip as string) ?? null);
+      if (r.available === false) setProbeErr((r.soc_note as string) ?? "Target refused.");
+    } catch (e) {
+      setProbeErr(String((e as Error).message));
+    } finally {
+      setProbeBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (live) setSnap(live);
@@ -41,6 +65,36 @@ export function TargetRecon() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* ---------- 0. RUN RECON ON AN IP ---------- */}
+      <Panel
+        title="Run recon on an IP"
+        sub="Enter an authorized lab IP (RFC1918) or one of your tailnet peers. Sends a bounded, non-destructive TCP-connect probe from Kali — the target's SOC logs these connection attempts as reconnaissance (your proof). Public IPs are refused."
+      >
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={ip}
+              onChange={(e) => setIp(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") probeIp(); }}
+              placeholder="e.g. 100.80.167.51 or 10.0.0.5"
+              className="h-9 w-64 rounded border border-line bg-canvas px-3 font-mono text-sm text-ink outline-none placeholder:text-faint focus:border-accent"
+            />
+            <Button variant="primary" onClick={probeIp} disabled={probeBusy || !ip.trim()}>
+              {probeBusy ? "Probing…" : "Run recon probe"}
+            </Button>
+          </div>
+          {socNote && (
+            <div className="rounded border border-ok/40 bg-ok/10 px-3 py-2 text-xs text-ok">
+              {socNote}
+              {sourceIp && <span className="ml-1 text-ok/70">(source IP for the SOC: {sourceIp})</span>}
+            </div>
+          )}
+          {probeErr && !socNote && (
+            <div className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{probeErr}</div>
+          )}
+        </div>
+      </Panel>
+
       {/* ---------- 1. TARGET IP ---------- */}
       <Panel
         title="Target"

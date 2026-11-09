@@ -58,6 +58,44 @@ def telemetry_latest() -> dict:
     return service.latest.model_dump(mode="json")
 
 
+class ProbeRequest(BaseModel):
+    target: str
+
+
+@router.post("/telemetry/probe")
+def telemetry_probe(req: ProbeRequest) -> dict:
+    """On-demand, NON-DESTRUCTIVE recon probe of an operator-supplied target IP.
+    Fail-closed: only RFC1918 lab IPs or current tailnet peers are allowed; public
+    IPs are refused. The TCP-connect attempts it sends are what the target's SOC
+    logs as reconnaissance activity — the operator's proof that red-team activity
+    reached the target. No credentials, nothing installed on the target."""
+    import subprocess
+    from ..telemetry import collector
+
+    t = collector.probe_on_demand(req.target)
+    out = t.model_dump(mode="json")
+    src = None
+    try:
+        r = subprocess.run(["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=5)
+        src = (r.stdout.strip().splitlines() or [None])[0]
+    except Exception:
+        src = None
+    out["source_ip"] = src
+    out["activity"] = "reconnaissance (non-destructive TCP connect)"
+    net = out.get("network") or {}
+    if out.get("available"):
+        probed = net.get("ports_probed", 0)
+        open_n = len(net.get("open_ports") or [])
+        out["soc_note"] = (
+            f"Recon complete — {probed} TCP connection attempts sent to {req.target} "
+            f"from {src or 'this Kali host'} ({open_n} port(s) open). The target's SOC "
+            f"logs these as reconnaissance activity from {src or 'the Kali source IP'}: your proof."
+        )
+    else:
+        out["soc_note"] = f"Refused — {out.get('reason') or 'target not authorized for probing'}."
+    return out
+
+
 @router.get("/decision/{kind}")
 def decision(kind: AttackKind) -> dict:
     """AGENT DECISION for the current real snapshot. Read-and-reason only."""

@@ -50,6 +50,8 @@ export const api = {
     fetch("/api/health").then(json<{ status: string; telemetry_source: string; halted: boolean }>),
   telemetry: () => fetch("/api/telemetry/latest").then(json<Telemetry>),
   history: (minutes: number) => fetch(`/api/telemetry/history?minutes=${minutes}`).then(json<HistoryPoint[]>),
+  probeTarget: (target: string) =>
+    post("/api/telemetry/probe", { target }).then(json<Record<string, unknown>>),
   analytics: () => fetch("/api/analytics/sessions").then(json<AnalyticsRow[]>),
   decision: (kind: Kind) => fetch(`/api/decision/${kind}`).then(json<Decision>),
   sessions: () => fetch("/api/sessions").then(json<SessionBrief[]>),
