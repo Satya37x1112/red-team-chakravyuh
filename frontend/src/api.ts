@@ -65,7 +65,8 @@ export const api = {
       json<{ session_id: string; label: string; kind: Kind; state: string }>
     ),
   killSwitch: () => post("/api/killswitch").then(json<{ halted: boolean; killed: string[] }>),
-  rearm: () => post("/api/killswitch/reset").then(json<{ halted: boolean }>),
+  rearm: (adminToken: string) =>
+    post("/api/killswitch/reset", { admin_token: adminToken }).then(json<{ halted: boolean }>),
 
   integrations: () => fetch("/api/integrations").then(json<IntegrationStatus[]>),
   calderaSamples: () => fetch("/api/integrations/caldera/samples").then(json<CalderaSample[]>),

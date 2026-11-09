@@ -200,7 +200,7 @@ async def engage_kill_switch() -> dict:
 
 
 class KillSwitchReset(BaseModel):
-    admin_token: str
+    admin_token: str = ""
 
 
 @router.post("/killswitch/reset")

@@ -75,11 +75,32 @@ export default function App() {
   }, [notify, refreshAnalytics]);
 
   const rearm = useCallback(async () => {
+    const KEY = "chakravyuh_rearm_token";
+    let token = "";
     try {
-      await api.rearm();
+      token = localStorage.getItem(KEY) ?? "";
+    } catch {
+      token = "";
+    }
+    if (!token) {
+      token = window.prompt("Admin token to re-arm the range (SAFETY_ADMIN_TOKEN):") ?? "";
+      if (!token) return; // cancelled
+    }
+    try {
+      await api.rearm(token);
+      try {
+        localStorage.setItem(KEY, token);
+      } catch {
+        /* ignore storage errors */
+      }
       setHalted(false);
       notify({ tone: "ok", title: "Range re-armed", body: "Sessions can be started again." });
     } catch (e) {
+      try {
+        localStorage.removeItem(KEY); // bad/old token — forget it so the next try re-prompts
+      } catch {
+        /* ignore */
+      }
       notify({ tone: "crit", title: "Re-arm failed", body: String((e as Error).message) });
     }
   }, [notify]);
