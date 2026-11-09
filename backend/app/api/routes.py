@@ -96,6 +96,28 @@ def telemetry_probe(req: ProbeRequest) -> dict:
     return out
 
 
+class SocActivityRequest(BaseModel):
+    kind: str          # ddos | bruteforce | ratuba/rat/rat_related
+    target: str
+
+
+@router.post("/attacks/soc-activity")
+def attacks_soc_activity(req: SocActivityRequest) -> dict:
+    """Generate a BOUNDED, non-destructive SOC detection-signature for a TTP against
+    an authorized lab/tailnet target (purple-team). Not a real attack: no flood/DoS,
+    bogus credentials only (no lockout), read-only enumeration (no implant). Public
+    IPs are refused. The generated network events are what the target's SOC logs."""
+    if orchestrator.halted:
+        raise HTTPException(423, "Kill switch is engaged; the range is halted.")
+    from ..integrations import activity_gen
+
+    result = activity_gen.generate_signature(req.kind.strip(), req.target.strip())
+    if result.get("authorized") is False:
+        # Honest refusal (e.g. public IP) — surface as 423 so the UI shows it clearly.
+        raise HTTPException(423, result.get("reason", "target not authorized"))
+    return result
+
+
 @router.get("/decision/{kind}")
 def decision(kind: AttackKind) -> dict:
     """AGENT DECISION for the current real snapshot. Read-and-reason only."""

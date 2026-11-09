@@ -58,6 +58,8 @@ export const api = {
   session: (id: string) => fetch(`/api/sessions/${id}`).then(json<SessionDetail>),
   result: (id: string) =>
     fetch(`/api/results/${id}`).then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null)),
+  socActivity: (body: { kind: string; target: string }) =>
+    post("/api/attacks/soc-activity", body).then(json<Record<string, unknown>>),
   start: (kind: Kind) =>
     post("/api/attacks/start", { kind }).then(
       json<{ session_id: string; label: string; kind: Kind; state: string }>
