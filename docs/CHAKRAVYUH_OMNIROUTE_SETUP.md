@@ -1,50 +1,61 @@
 # CYBER CHAKRAVYUH — OmniRoute Self-Hosting Setup (Stage 2)
 
-**Date:** 2026-11-08 · Status: **install BLOCKED on the current Node runtime.** Honest record of what was attempted, the exact blocker, and how to proceed. No secrets shown; no commit.
+**Date:** 2026-11-09 · Status: **INSTALLED, SECURED, LIVE-VERIFIED.** No secrets shown; nothing committed.
+
+Supersedes the earlier "install BLOCKED on Node v22.11.0 + SSL cipher" record — that
+blocker was resolved by installing a **separate** user-level Node 24 runtime (the old
+Node 22 is preserved for the frontend).
 
 ---
 
-## 1. OmniRoute facts (from the official repo, github.com/cheaper-inference/OmniRoute)
-- **What:** an MIT, OpenAI-compatible AI **gateway** (not an inference model; "bring your own provider keys") aggregating ~380 providers.
-- **Install:** `npm install -g omniroute` (also `bun add -g`, `pnpm add -g omniroute@latest`, `npx -y omniroute`).
-- **Node required:** `>=22.22.2 <23 || >=24.0.0 <27` (several transitive deps require `>=22.19`, `>=22.22`).
-- **Run:** `omniroute` (serves gateway + dashboard) / `omniroute serve`. No documented `--headless` flag.
-- **Default port:** `20128` (base URL `http://localhost:20128/v1`). Bind address not documented.
-- **Config/data:** `~/.omniroute/` (config + SQLite DB).
-- **Provider keys + gateway key:** via the **web Dashboard** ("Dashboard → Providers" to add a key; "Dashboard → Endpoints" to copy the gateway key). `omniroute tokens create` creates remote-mode tokens. **No documented env-var/CLI way to add a provider key headlessly.**
-- **OpenAI-compatible endpoints:** `GET /v1/models`, chat completions under `/v1`.
-- **Resources:** ~2 GB+ for dashboard + light chat; native builds (`better-sqlite3`, `@swc/core`).
+## 1. OmniRoute facts (verified against the official repo + installed build)
+- **What:** MIT, OpenAI-compatible AI **gateway** (not an inference model; bring-your-own provider keys).
+- **Installed version:** **omniroute 3.8.53** (`npm view`/`omniroute --version`).
+- **Node required (engines):** `>=22.22.2 <23 || >=24.0.0 <27`. We run it on **Node v24.22.2**.
+- **Install (official, user-level, no sudo):** `npm install -g omniroute`.
+- **Default port:** `20128`; API base `http://127.0.0.1:20128/v1`.
+- **Bind host (verified env var):** `OMNIROUTE_SERVER_HOST` (default `0.0.0.0`) → set `127.0.0.1` for loopback-only.
+- **Headless:** `OMNIROUTE_HEADLESS=1` (or `omniroute serve --headless`) — runs only the `/v1` proxy, dashboard disabled.
+- **Auth (verified):** `REQUIRE_API_KEY` — **shipped default is `false`**; must set `=true` to gate `/v1/chat/completions`.
+- **Config/data dir:** `~/.omniroute/` (`DATA_DIR`), incl. `storage.sqlite` (provider keys encrypted at rest via auto-generated `STORAGE_ENCRYPTION_KEY`).
+- **OpenAI-compatible endpoints:** `GET /v1/models`, `POST /v1/chat/completions`, `/v1/responses`, …
+- **Provider config (headless, verified):** `omniroute keys add <provider> --stdin` + `omniroute setup --non-interactive` + `omniroute providers test <id>` — **no browser required** (updates the earlier "dashboard-only" note).
 
-## 2. Attempt + exact blocker (2026-11-08)
-Environment: user-level Node at `~/.local/node` (`npm prefix` = `~/.local/node`, so `-g` installs are **user-level, no sudo**); build tools present (python3/make/g++/gcc); 54 GB free.
+## 2. Installation performed (2026-11-09)
+1. Installed a dedicated user-level Node runtime (checksum-verified), leaving the existing Node 22 intact:
+   - Downloaded `node-v24.22.2-linux-x64.tar.xz` from nodejs.org, **SHA256 verified** against `SHASUMS256.txt`.
+   - Extracted to **`~/.local/node24`** (npm global prefix `~/.local/node24`, user-level, **no sudo**).
+2. `npm install -g omniroute` → **omniroute@3.8.53** at `~/.local/node24/lib/node_modules/omniroute`, bin `~/.local/node24/bin/omniroute`.
+   - Native deps resolved via prebuilt binaries (`better-sqlite3` `linux-x64.node`, `@swc/core`, `sharp`, `onnxruntime`, `keytar`). `npm ls -g omniroute` clean.
+   - The earlier `ERR_SSL_CIPHER_OPERATION_FAILED` did not recur on Node 24 (newer OpenSSL).
 
+**Existing Node 22 preserved:** `~/.local/node` (v22.11.0) is untouched and still used by the frontend build.
+
+## 3. Secure runtime posture (Phase 3)
+Started headless, loopback-only, auth-required:
 ```
-npm install -g omniroute   →  FAILED
-  npm warn EBADENGINE  required: >=22.12.0 / >=22.19.0 / >= 22.22 ...  current: v22.11.0
-  npm error code ERR_SSL_CIPHER_OPERATION_FAILED   (fatal — aborted the install)
+OMNIROUTE_SERVER_HOST=127.0.0.1  PORT=20128  OMNIROUTE_HEADLESS=1  REQUIRE_API_KEY=true  DATA_DIR=~/.omniroute
 ```
-- **Blocker 1 (runtime):** the installed **Node is v22.11.0**, below OmniRoute's required `>=22.22.2`. Multiple deps flagged `EBADENGINE`.
-- **Blocker 2 (fatal):** `ERR_SSL_CIPHER_OPERATION_FAILED` (an OpenSSL GCM failure in this Node build) aborted the download/extract — **no binary was installed**.
-- The partial module was removed; the tree is clean. **OmniRoute is NOT installed.**
+Verified:
+- **Loopback only:** `ss -ltn` shows `127.0.0.1:20128` (never `0.0.0.0`).
+- **Auth enforced:** unauth/invalid key on `/v1/chat/completions` → **HTTP 401**; valid key → 200.
+- **Headless:** dashboard disabled; only the `/v1` proxy is exposed.
+- **Secrets:** provider key stored encrypted in `~/.omniroute/storage.sqlite` (added via `--stdin`, never in argv); client key in a `600` file; no key ever logged or printed.
 
-## 3. Secondary blocker (even if install succeeds)
-Provider configuration and the gateway key are **web-dashboard-driven** — there is no documented headless/env way to add a provider API key. Completing the provider setup therefore requires **opening the OmniRoute dashboard in a browser** (an interactive, owner-performed step), which cannot be done from the terminal alone.
+> **Limitation found & handled:** `REQUIRE_API_KEY` ships `false` (inference plane open, loopback-protected only). We explicitly set it `true`. Also, `/v1/models` is always auth-gated independent of this flag.
+> **Client-key provisioning:** the `/v1` client bearer key is normally minted in the dashboard (headless disables the UI). We minted one headlessly via OmniRoute's own authenticated local API (`POST /api/keys {name}`), keeping auth ON.
 
-## 4. How to proceed (owner decisions)
-**To use OmniRoute:**
-1. **Upgrade the user-level Node** to `>=22.22.2` (e.g. latest 22.x) or **24 LTS** — a user-level install to `~/.local/node` (no sudo). *Note: this replaces the current `~/.local/node` v22.11.0 that the frontend build uses; newer Node still builds Vite, but this is a deliberate environment change to flag.* (A newer Node also carries a newer OpenSSL, which should clear the cipher error.)
-2. Re-run `npm install -g omniroute` (heavy; several minutes of native builds).
-3. Start `omniroute`, confirm the actual port/bind, then **(owner, interactive)** open the dashboard, add a provider key, and copy the gateway key.
-4. Wire into CHAKRAVYUH via Stage 1: `LLM_PROVIDER=omniroute`, `LLM_BASE_URL=http://127.0.0.1:<port>/v1`, `LLM_API_KEY=<gateway key>`, `LLM_MODEL=<model>`, then `POST /api/llm/test`.
+## 4. Provider configured (Phase 4)
+- **Provider:** OpenRouter (`https://openrouter.ai/api/v1`), key added to OmniRoute via `omniroute keys add openrouter --stdin` (owner-supplied credential).
+- **Model used for tests:** `openrouter/auto`.
+- **Health:** `omniroute providers test openrouter` → `OK: provider test passed`.
+- **Free tier / quotas:** OpenRouter routes to the account's available models; billing/limits are the owner's OpenRouter account's. OmniRoute itself adds no inference cost (it's a gateway).
 
-**Or skip OmniRoute (live AI already works):** the Stage-1 generic client already reaches a live provider — **OpenRouter's free model works today** (default config). OmniRoute is a convenience gateway, not required for live AI.
+## 5. Start / stop
+See **docs/CHAKRAVYUH_OMNIROUTE_RUNBOOK.md** (manual start/stop) and the launcher `~/.local/bin/chakravyuh-omniroute`.
 
-## 5. Provider keys provided (status)
-- **OpenRouter** (new key, in gitignored `.env`): paid model credit-limited; **free fallback model works → live AI available now**.
-- **DeepSeek** (in gitignored `.env`): key is **valid and authenticates**, but the account returns **HTTP 402 Insufficient Balance** → no inference until balance is added. (Verified via a harmless probe through the Stage-1 generic client; no target contacted; key never logged.)
-
-## 6. Security
-`.env` is gitignored and untracked; both keys are stored only there and were never printed, logged, committed, or returned by any API. The Stage-1 client redacts keys from errors; the DeepSeek 402 error contained no secret.
-
-## 7. Status
-**OmniRoute self-hosting = BLOCKED** (Node `<22.22` + fatal SSL cipher error; plus dashboard-only provider config). **Integration readiness = config-ready** (Stage 1 supports `LLM_PROVIDER=omniroute`), but **NOT LIVE VERIFIED**. **Live AI overall = available** via OpenRouter's free model through the Stage-1 generic client.
+## 6. Known limitations
+- `REQUIRE_API_KEY` default is `false` — must be forced `true` (launcher does this).
+- `/v1` client-key minting is dashboard-oriented; we used the local authenticated API instead (documented).
+- OmniRoute is a full Next.js app (~hundreds of deps); first install is heavy (several minutes of downloads).
+- Live inference depends on the OpenRouter account having credit; OmniRoute does not provide free inference.

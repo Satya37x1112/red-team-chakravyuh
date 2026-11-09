@@ -11,6 +11,8 @@ per-module AI clients and cannot bypass the Safety Gateway.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -18,6 +20,30 @@ from ..config import settings
 from ..integrations import _llm
 
 router = APIRouter(prefix="/api/llm")
+
+# In-memory record of the most recent connection test (NON-persistent; reset on
+# restart). Holds only sanitized, secret-free fields — the time of the last test,
+# whether a real inference succeeded, the last successful-test time, and the last
+# sanitized error. No API key, prompt, or reply body is stored here.
+_LAST_TEST: dict | None = None
+
+
+def _record_test(result: dict) -> None:
+    """Fold a /test result into the last-test summary (secret-free)."""
+    global _LAST_TEST
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    prev = _LAST_TEST or {}
+    ok = bool(result.get("inference_ok"))
+    errors = result.get("errors") or []
+    _LAST_TEST = {
+        "at": now,
+        "inference_ok": ok,
+        "reason": result.get("reason"),
+        # Preserve the last *successful* test time across later failures.
+        "last_success_at": now if ok else prev.get("last_success_at"),
+        # The most recent sanitized error (cleared on success).
+        "last_error": None if ok else (errors[0] if errors else result.get("reason")),
+    }
 
 
 def _config_view() -> dict:
@@ -32,6 +58,7 @@ def _config_view() -> dict:
         "config_valid": valid,
         "reason": reason,
         "persistent": False,  # runtime changes reset on restart; .env is the durable store
+        "last_test": _LAST_TEST,  # sanitized last-test summary (no secret), or null
     }
 
 
@@ -73,4 +100,6 @@ def update_llm_config(req: LLMConfigUpdate) -> dict:
 def test_llm_connection() -> dict:
     """Run one harmless inference ('CHAKRAVYUH LLM CONNECTION SUCCESS') against the
     configured provider and return staged, sanitized results. No secrets returned."""
-    return _llm.test_connection()
+    result = _llm.test_connection()
+    _record_test(result)
+    return result

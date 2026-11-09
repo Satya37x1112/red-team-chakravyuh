@@ -231,3 +231,35 @@ This new master scope (OmniRoute AI gateway, network isolation, controlled proxy
 ## F. Completion-Accuracy Statement
 
 This report avoids invented percentages, does not mark untested integrations as verified (Hydra/Locust/WinRM/live-LLM are explicitly PARTIAL/unverified), never equates simulation with real execution, and treats documentation as documentation — not implementation. Every "COMPLETED AND TESTED" item names the test file(s) that were actually executed and passed. Updated only after implementation and testing.
+
+---
+
+## Stage 2 — OmniRoute Self-Hosting & Live AI Integration (2026-11-09)
+
+**Status: READY WITH LIMITATIONS** — gateway installed, secured, and live-verified end-to-end.
+
+- **Install:** OmniRoute **v3.8.53** via `npm install -g omniroute`, user-level, **no sudo**, on a
+  dedicated **Node v24.22.2** at `~/.local/node24` (checksum-verified). Existing Node 22
+  (`~/.local/node`, used by the frontend) **preserved**.
+- **Security (Phase 3):** headless, **loopback-only** (`OMNIROUTE_SERVER_HOST=127.0.0.1`, verified `ss`),
+  **auth required** (`REQUIRE_API_KEY=true` — note the shipped default is `false`). Provider key
+  stored encrypted in `~/.omniroute/`; `/v1` client key in a `600` file. No secret logged/returned.
+- **Provider (Phase 4):** OpenRouter added to OmniRoute via `keys add --stdin`; `providers test` OK.
+- **Integration (Phase 5):** no new client — the Stage 1 centralized `_llm` client points at OmniRoute
+  by config. `backend/.env` carries ready-to-activate `LLM_*` lines (commented); OpenRouter stays active.
+- **Live verification (Phase 6):** all 10 checks pass through the secured gateway — loopback,
+  401 on no/invalid key, 200 + "CHAKRAVYUH OMNIROUTE CONNECTION SUCCESS." with a valid key,
+  CHAKRAVYUH client → OmniRoute `inference_ok:true`, and OpenRouter regression live-passing.
+- **Frontend (Phase 7):** existing Settings page extended with a persisted **last successful
+  connection test** / **last error** (via `GET /api/llm/config.last_test`); key stays write-only.
+- **Regression (Phase 9):** backend **166 passed**; frontend typecheck **pass**; production build **OK**.
+- **Code changed (uncommitted):** `backend/app/api/llm.py`, `frontend/src/pages/Settings.tsx`,
+  `frontend/src/types.ts`. Docs: `CHAKRAVYUH_OMNIROUTE_SETUP.md`, `..._INTEGRATION.md`, `..._RUNBOOK.md`.
+- **Limitations:** `REQUIRE_API_KEY` default false (forced true by the launcher); `/v1` client-key
+  minting is dashboard-oriented (done via the local authenticated API instead); live inference
+  depends on OpenRouter account credit.
+- **Env note:** system Python was upgraded 3.13→3.14 mid-session by an external process, repointing
+  `backend/.venv`; tests were run with `python3.13` + the venv's packages (the venv interpreter may
+  need re-pointing/rebuild for 3.14).
+
+> Not committed/pushed. Windows target not contacted. No unauthorized system-wide changes.

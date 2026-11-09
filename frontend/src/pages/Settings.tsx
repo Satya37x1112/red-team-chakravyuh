@@ -157,6 +157,27 @@ export function Settings() {
             </div>
             {msg && <p className="text-xs text-muted">{msg}</p>}
             {!cfg.config_valid && <p className="text-xs text-warn">{cfg.reason}</p>}
+            {cfg.last_test && (
+              <div className="flex flex-col gap-1 rounded border border-line bg-canvas px-3 py-2 text-2xs text-muted">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-faint">Last test:</span>
+                  <Pill tone={cfg.last_test.inference_ok ? "ok" : "crit"} dot>
+                    {cfg.last_test.inference_ok ? "inference ok" : "failed"}
+                  </Pill>
+                  <span>{cfg.last_test.at}</span>
+                </div>
+                <div>
+                  <span className="text-faint">Last successful connection test: </span>
+                  {cfg.last_test.last_success_at ?? "— none yet —"}
+                </div>
+                {cfg.last_test.last_error && (
+                  <div className="text-crit">
+                    <span className="text-faint">Last error: </span>
+                    {cfg.last_test.last_error}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Panel>

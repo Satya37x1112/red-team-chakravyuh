@@ -376,6 +376,14 @@ export interface RemoteAccessResult {
 }
 
 // --- Stage 1: generic LLM provider config ---
+export interface LlmLastTest {
+  at: string;
+  inference_ok: boolean;
+  reason: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+}
+
 export interface LlmConfig {
   provider: string;
   supported_providers: string[];
@@ -386,6 +394,7 @@ export interface LlmConfig {
   config_valid: boolean;
   reason: string;
   persistent: boolean;
+  last_test: LlmLastTest | null;
 }
 
 export interface LlmTestResult {
