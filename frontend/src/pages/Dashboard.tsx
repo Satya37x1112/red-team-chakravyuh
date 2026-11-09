@@ -9,6 +9,7 @@ import { OutcomesByScenario } from "../components/analytics-charts";
 import { Radar3D } from "../components/Radar3D";
 import { AttackSurfacePanel } from "../components/AttackSurfacePanel";
 import { Button, Dot, Icon, Panel, Stat } from "../components/ui";
+import { QuickAttack } from "../components/QuickAttack";
 import { useLiveContext } from "../live-context";
 import { KIND_LIST, parseTs, uptime } from "../lib";
 import type { AnalyticsRow, Kind, Telemetry } from "../types";
@@ -92,6 +93,8 @@ export function Dashboard() {
           </div>
         ))}
       </dl>
+
+      <QuickAttack />
 
       <section className="grid grid-cols-2 divide-line overflow-hidden rounded-lg border border-line bg-surface md:grid-cols-5 md:divide-x">
         <Stat label="Sessions run" value={analytics.length} sub={`${todayRuns} today`} />
