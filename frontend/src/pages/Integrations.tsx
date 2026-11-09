@@ -298,6 +298,26 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
     }
   }, [users, rate, secs]);
 
+  const simulate = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await api.locustSimulate({ users, spawn_rate: rate, run_seconds: secs }));
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }, [users, rate, secs]);
+
+  const stop = useCallback(async () => {
+    try {
+      await api.killSwitch();
+    } catch (e) {
+      setError(String((e as Error).message));
+    }
+  }, []);
+
   return (
     <Panel
       title="Locust Load Test"
@@ -357,16 +377,53 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
             LOCUST_ENABLED=true · LOCUST_FILE_PATH=… · LOCUST_TARGET_URL=…
           </code>
         )}
+
+        <div className="flex flex-col gap-2 rounded border border-amber-500/40 bg-amber-500/5 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-2xs font-semibold uppercase tracking-wide text-amber-500">
+              Simulation mode — no network traffic
+            </span>
+            <Pill tone="warn">SIMULATED</Pill>
+          </div>
+          <p className="text-2xs text-muted">
+            Demonstrates the full execution lifecycle (Safety Gateway · Registry · Kill Switch · audit)
+            with synthetic telemetry. Sends nothing — no target is contacted. Uses the caps above
+            (users ≤{caps.max_users}, spawn ≤{caps.max_spawn_rate}, ≤{caps.max_run_seconds}s), clamped server-side.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={simulate} disabled={busy}>
+              <Icon name="pulse" size={13} />
+              {busy ? "Simulating…" : "Run simulation"}
+            </Button>
+            <Button variant="danger" onClick={stop} disabled={!busy}>
+              <Icon name="power" size={12} />
+              Stop
+            </Button>
+          </div>
+        </div>
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
         {result && (
           <div className="flex flex-col gap-2">
+            {result.simulated === true && (
+              <div className="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-center font-mono text-2xs font-semibold uppercase tracking-wide text-amber-500">
+                {String(result.banner ?? "SIMULATION — NO NETWORK TRAFFIC GENERATED")}
+                {result.stopped_early === true ? " · STOPPED" : ""}
+              </div>
+            )}
             {(() => {
-              const t = result.totals as { requests?: number; failures?: number; rps?: number } | undefined;
+              const t = result.totals as
+                | { requests?: number; failures?: number; rps?: number; error_pct?: number; p95_ms?: number }
+                | undefined;
+              const sim = result.simulated === true;
               return t ? (
                 <div className="grid grid-cols-3 gap-2.5">
-                  <StatTile label="Requests" value={Number(t.requests ?? 0)} />
-                  <StatTile label="Req/s" value={Number(t.rps ?? 0)} tone="ok" />
-                  <StatTile label="Failures" value={Number(t.failures ?? 0)} tone={Number(t.failures ?? 0) ? "crit" : "ink"} />
+                  <StatTile label={sim ? "Sim requests" : "Requests"} value={Number(t.requests ?? 0)} />
+                  <StatTile label={sim ? "Sim req/s" : "Req/s"} value={Number(t.rps ?? 0)} tone="ok" />
+                  {sim ? (
+                    <StatTile label="Sim p95 ms" value={Number(t.p95_ms ?? 0)} />
+                  ) : (
+                    <StatTile label="Failures" value={Number(t.failures ?? 0)} tone={Number(t.failures ?? 0) ? "crit" : "ink"} />
+                  )}
                 </div>
               ) : null;
             })()}

@@ -72,6 +72,8 @@ export const api = {
     post("/api/integrations/vervet/emulate", body).then(json<VervetEmulateResult>),
   locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
     post("/api/integrations/locust/run", body).then(json<Record<string, unknown>>),
+  locustSimulate: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
+    post("/api/integrations/locust/simulate", body).then(json<Record<string, unknown>>),
   hydraRun: (body: { tasks?: number; run_seconds?: number }) =>
     post("/api/integrations/hydra/run", body).then(json<Record<string, unknown>>),
 

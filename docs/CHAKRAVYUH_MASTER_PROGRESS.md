@@ -263,3 +263,28 @@ This report avoids invented percentages, does not mark untested integrations as 
   need re-pointing/rebuild for 3.14).
 
 > Not committed/pushed. Windows target not contacted. No unauthorized system-wide changes.
+
+---
+
+## DDoS Research Lab — Design + Simulation Mode (2026-11-09)
+
+**Status: READY WITH LIMITATIONS** (design + code ready; owner creates the disposable VM).
+
+- **Dedicated research target (design):** minimal **Alpine Linux** VM, **512 MB / 1 vCPU / 4 GB**
+  (host is RAM-constrained — prior "4096 MB paging" failure), its **own** Tailscale identity,
+  separate from the Windows target `100.80.167.51`. Docs: `CHAKRAVYUH_DDOS_RESEARCH_LAB.md`,
+  `CHAKRAVYUH_DDOS_TARGET_SETUP.md`. No VM created/booted (per scope).
+- **Research HTTP service:** `backend/tools/research_target_app.py` — zero-dependency stdlib app
+  (`/health`, `/test`, `/metrics` with counters + p50/p95/p99 + CPU/mem from /proc). Validated on loopback.
+- **Locust integration:** preserved; research target wired by **config only**; caps unchanged
+  (≤50 users / ≤10 spawn / ≤120 s). No flood/amplification/exhaustion primitives.
+- **DDoS Simulation Mode (new, no traffic):** separate `locust_sim` adapter + `simulate` plan flag +
+  gateway sim-branch + `POST /api/integrations/locust/simulate` + Integrations UI banner
+  "SIMULATION — NO NETWORK TRAFFIC GENERATED". Goes through Gateway/Registry/Kill-Switch/audit;
+  can never invoke the real Locust adapter. Files: `backend/app/integrations/locust_sim.py`,
+  `app/safety/{plan_schema,gateway,dispatcher}.py`, `app/api/integrations.py`,
+  `frontend/src/{api.ts,pages/Integrations.tsx}`.
+- **Preserved:** OpenRouter + OmniRoute 3.8.53 config, Windows target, Tailscale ACLs — all untouched.
+- **Env note:** backend tests run via `python3.13` + venv packages (venv interpreter repointed to 3.14 externally).
+
+> Not committed/pushed. No VM created. Windows target not contacted. No VMware/Tailscale/ACL changes.

@@ -42,6 +42,19 @@ def _locust_adapter(params: dict) -> dict:
     )
 
 
+def _locust_sim_adapter(params: dict) -> dict:
+    # DDoS SIMULATION — synthetic telemetry, NO network traffic. Kept as a
+    # separate adapter key ("locust_sim") so a simulation can never reach the
+    # real Locust adapter above.
+    from ..integrations import locust_sim
+
+    return locust_sim.run_simulation(
+        users=params.get("users"),
+        spawn_rate=params.get("spawn_rate"),
+        run_seconds=params.get("run_seconds"),
+    )
+
+
 def _remote_access_adapter(params: dict) -> dict:
     from ..integrations.remote_access import RemoteAccessIntegration
 
@@ -52,7 +65,8 @@ def _remote_access_adapter(params: dict) -> dict:
 
 
 def default_adapters() -> dict[str, Adapter]:
-    return {"hydra": _hydra_adapter, "locust": _locust_adapter, "remote_access": _remote_access_adapter}
+    return {"hydra": _hydra_adapter, "locust": _locust_adapter,
+            "locust_sim": _locust_sim_adapter, "remote_access": _remote_access_adapter}
 
 
 def run_execution(execution_id: str, *, adapters: dict[str, Adapter] | None = None) -> dict:

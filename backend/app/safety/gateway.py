@@ -95,6 +95,64 @@ def _reject(plan: ExecutionPlan, reason: str) -> GatewayDecision:
     )
 
 
+def _evaluate_simulation(plan: ExecutionPlan, policy_id: str, *, dry_run: bool) -> GatewayDecision:
+    """Authorize a DDoS **simulation** (no network traffic).
+
+    It still passes through the same safety spine — kill switch, parameter caps,
+    concurrency, Execution Registry, audit — but SKIPS the real-tool checks
+    (module-enabled / adapter-available / target-allowlist) because it contacts
+    nothing. The approved record is bound to the dedicated ``locust_sim`` adapter,
+    so a simulation can never invoke the real Locust adapter.
+    """
+    # A. kill switch still blocks new work (even simulated).
+    if kill_switch.is_engaged():
+        return _reject(plan, "Kill switch is engaged; the range is halted.")
+    # Simulation is defined for the ddos module only.
+    if plan.module is not ModuleId.ddos:
+        return _reject(plan, f"Simulation mode is only defined for 'ddos' (got '{plan.module.value}').")
+
+    # F. clamp the requested knobs DOWN to the ddos caps (users/spawn/duration).
+    validated = policy.clamp_params(plan.module, plan.params, plan.requested_duration_seconds)
+    validated["simulated"] = True
+
+    if dry_run:
+        if registry.active_count() >= policy.max_concurrent_executions():
+            return _reject(plan, "Concurrency limit reached; too many active executions.")
+        return GatewayDecision(
+            approved=True, reason="Simulation would be approved (dry run).", policy_id=policy_id,
+            timestamp=_now_iso(), module=plan.module.value, target=plan.requested_target,
+            execution_id=None, adapter="locust_sim", validated_parameters=validated,
+        )
+
+    with _APPROVAL_LOCK:
+        if registry.active_count() >= policy.max_concurrent_executions():
+            return _reject(plan, "Concurrency limit reached; too many active executions.")
+        rec = ExecutionRecord(
+            scenario_id=plan.scenario_id,
+            module=plan.module.value,
+            adapter="locust_sim",
+            target=plan.requested_target,
+            source=plan.source.value,
+            validated_parameters=validated,
+        )
+        registry.create(rec)
+        registry.transition(rec.execution_id, ExecState.VALIDATING)
+    decision = GatewayDecision(
+        approved=True, reason="Simulation approved within policy (no network traffic).",
+        policy_id=policy_id, timestamp=_now_iso(), module=plan.module.value,
+        target=plan.requested_target, execution_id=rec.execution_id, adapter=rec.adapter,
+        validated_parameters=validated,
+    )
+    registry.transition(rec.execution_id, ExecState.APPROVED, gateway_decision=decision.as_dict())
+    audit.audit(
+        audit.GATEWAY_APPROVED, execution_id=rec.execution_id, scenario_id=plan.scenario_id,
+        module=plan.module.value, target=plan.requested_target, decision="approved",
+        reason=decision.reason, policy_id=policy_id,
+        payload={"validated_parameters": validated, "source": plan.source.value, "simulation": True},
+    )
+    return decision
+
+
 def evaluate(plan: ExecutionPlan, *, dry_run: bool = False) -> GatewayDecision:
     """Evaluate a plan and, if approved, create its APPROVED registry record.
 
@@ -103,6 +161,11 @@ def evaluate(plan: ExecutionPlan, *, dry_run: bool = False) -> GatewayDecision:
     """
     policy_id = f"{POLICY_VERSION}:{plan.module.value}"
     try:
+        # Demonstration simulation (no network traffic) takes a dedicated path
+        # that still enforces the kill switch, caps, concurrency, registry + audit.
+        if getattr(plan, "simulate", False):
+            return _evaluate_simulation(plan, policy_id, dry_run=dry_run)
+
         # A. operational state / kill switch
         if kill_switch.is_engaged():
             return _reject(plan, "Kill switch is engaged; the range is halted.")

@@ -101,6 +101,11 @@ class ExecutionPlan(BaseModel):
     module: ModuleId
     source: PlanSource = PlanSource.manual
 
+    # Demonstration SIMULATION mode (ddos only). When True the Gateway routes the
+    # approved record to the synthetic 'locust_sim' adapter, which generates NO
+    # network traffic. It is a shape flag, never a cap, and cannot widen limits.
+    simulate: bool = False
+
     # --- scope ---
     requested_target: str = Field(min_length=1, max_length=255)
 

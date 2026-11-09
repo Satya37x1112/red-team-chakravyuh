@@ -251,6 +251,48 @@ def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
     return result
 
 
+class LocustSimRequest(BaseModel):
+    users: int | None = Field(default=None, ge=1)
+    spawn_rate: int | None = Field(default=None, ge=1)
+    run_seconds: int | None = Field(default=None, ge=1)
+
+
+@router.post("/locust/simulate")
+def locust_simulate(req: LocustSimRequest, db: Session = Depends(get_db)) -> dict:
+    """DDoS **SIMULATION** — runs through the SAME lifecycle (Gateway → Registry →
+    Dispatcher → audit) but generates synthetic telemetry and NO network traffic.
+    Routed to the dedicated 'locust_sim' adapter; it can never invoke real Locust."""
+    plan = ExecutionPlan(
+        scenario_id="integration:locust-sim",
+        module=ModuleId.ddos,
+        source=PlanSource.manual,
+        simulate=True,
+        requested_target="simulation",
+        params=ExecutionParams(users=req.users, spawn_rate=req.spawn_rate, run_seconds=req.run_seconds),
+    )
+    decision = evaluate(plan)
+    if decision.rejected:
+        raise HTTPException(423, decision.reason)
+    outcome = dispatcher.run_execution(decision.execution_id)  # type: ignore[arg-type]
+    rec = registry.get(decision.execution_id)  # type: ignore[arg-type]
+    if rec and rec.state == ExecState.FAILED:
+        raise HTTPException(502, f"simulation failed: {rec.error}")
+    result = outcome.get("result") or {}
+    t = result.get("totals", {})
+    p = result.get("params", {})
+    summary = (
+        f"SIMULATION · {p.get('users')} users · {p.get('actual_seconds')}s · "
+        f"{t.get('requests')} sim requests (~{t.get('rps')}/s), {t.get('error_pct')}% sim errors "
+        f"— NO NETWORK TRAFFIC"
+    )
+    result["artifact_id"] = _save_artifact(
+        db, "locust", "load_test_simulation", "DDoS simulation (no traffic)", summary, result
+    )
+    result["execution_id"] = decision.execution_id
+    result["execution_state"] = outcome.get("state")
+    return result
+
+
 # ---- hydra -----------------------------------------------------------------
 
 class HydraRunRequest(BaseModel):
