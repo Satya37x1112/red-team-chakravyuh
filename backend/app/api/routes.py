@@ -72,6 +72,11 @@ def telemetry_probe(req: ProbeRequest) -> dict:
     import subprocess
     from ..telemetry import collector
 
+    # Kill switch: no new network-touching activity while the range is halted
+    # (consistent with /attacks/soc-activity; fail-closed).
+    if orchestrator.halted:
+        raise HTTPException(423, "Kill switch is engaged; the range is halted.")
+
     t = collector.probe_on_demand(req.target)
     out = t.model_dump(mode="json")
     src = None
