@@ -41,3 +41,23 @@ def test_probe_refuses_public_ip():
     body = r.json()
     assert body.get("available") is False
     assert "refused" in (body.get("soc_note") or "").lower()
+
+
+def test_probe_emits_central_audit_record():
+    """Stage 3: the recon probe is audited centrally (execution identity + outcome)."""
+    from app.db import SessionLocal
+    from app.models import AuditRecord
+
+    client.post("/api/telemetry/probe", json={"target": "8.8.8.8"})  # refused, no network
+    db = SessionLocal()
+    try:
+        rec = (
+            db.query(AuditRecord)
+            .filter(AuditRecord.event_type == "RECON_PROBE", AuditRecord.target == "8.8.8.8")
+            .order_by(AuditRecord.id.desc())
+            .first()
+        )
+    finally:
+        db.close()
+    assert rec is not None
+    assert rec.decision == "refused"

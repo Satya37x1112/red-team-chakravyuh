@@ -14,6 +14,7 @@ from ..agent.decision import decide
 from ..agent.orchestrator import orchestrator
 from ..db import get_db
 from ..models import AgentEvent, AttackKind, AttackResult, AttackSession, SimulationMetric, Target, TelemetrySnapshot
+from ..safety import audit
 from ..telemetry.service import service
 from ..ws import hub
 
@@ -98,6 +99,13 @@ def telemetry_probe(req: ProbeRequest) -> dict:
         )
     else:
         out["soc_note"] = f"Refused — {out.get('reason') or 'target not authorized for probing'}."
+    audit.audit(
+        audit.RECON_PROBE, module="blackbox", target=req.target,
+        decision="completed" if out.get("available") else "refused",
+        reason=(out.get("activity") or "recon probe")[:200],
+        payload={"source_ip": src, "ports_probed": net.get("ports_probed"),
+                 "open_ports": net.get("open_ports"), "reachable": net.get("reachable")},
+    )
     return out
 
 
@@ -120,6 +128,11 @@ def attacks_soc_activity(req: SocActivityRequest) -> dict:
     if result.get("authorized") is False:
         # Honest refusal (e.g. public IP) — surface as 423 so the UI shows it clearly.
         raise HTTPException(423, result.get("reason", "target not authorized"))
+    audit.audit(
+        audit.RECON_SOC_ACTIVITY, module=req.kind.strip(), target=req.target.strip(),
+        decision="completed", reason=(result.get("label") or "soc signature")[:200],
+        payload={"source_ip": result.get("source_ip"), "detectable_as": result.get("detectable_as")},
+    )
     return result
 
 

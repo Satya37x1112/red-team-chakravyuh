@@ -54,6 +54,10 @@ KILLSWITCH_RESET = "KILLSWITCH_RESET"
 CANCEL_REQUESTED = "CANCEL_REQUESTED"
 CANCEL_CONFIRMED = "CANCEL_CONFIRMED"
 CANCEL_FAILED = "CANCEL_FAILED"
+# Recon routes (blackbox probe + SOC-signature) — outside the Gateway/Registry but
+# audited centrally for execution identity + outcome.
+RECON_PROBE = "RECON_PROBE"
+RECON_SOC_ACTIVITY = "RECON_SOC_ACTIVITY"
 
 
 def audit(
