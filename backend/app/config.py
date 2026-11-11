@@ -170,6 +170,11 @@ class Settings(BaseSettings):
     discovery_max_hosts: int = 64
     discovery_connect_timeout: float = 0.5
     discovery_ports: str = "22,80,443,445,3389,8080"
+    # Prohibited subnets for ALL recon/discovery authorization (shared hotspot etc.).
+    # Comma-separated CIDRs. The live default-route subnet is also added dynamically.
+    discovery_prohibited_subnets: str = "10.81.189.0/24"
+    # Max simultaneous discovery scans (atomic limit).
+    discovery_max_concurrent_scans: int = 2
 
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""

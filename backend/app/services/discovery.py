@@ -31,7 +31,7 @@ from ..db import SessionLocal
 from ..models import Target
 from ..safety import audit
 from ..safety.killswitch import kill_switch
-from ..safety.registry import ExecState, ExecutionRecord, registry
+from ..safety.registry import ExecState, ExecutionRecord, InvalidTransition, registry
 from ..telemetry.collector import _tailnet_peer_ips, authorize_recon_target
 
 log = logging.getLogger(__name__)
@@ -368,17 +368,20 @@ def validate_discovery_scope(
         if settings.discovery_authorized_subnets:
             allowed.extend([s.strip() for s in settings.discovery_authorized_subnets.split(",") if s.strip()])
         
-        if allowed:
-            is_allowlisted = False
-            for allowed_sub in allowed:
-                try:
-                    if net.subnet_of(ipaddress.ip_network(allowed_sub, strict=False)):
-                        is_allowlisted = True
-                        break
-                except Exception:
-                    pass
-            if not is_allowlisted:
-                return False, f"Subnet {subnet_clean} is not in the declared lab allowlist ({', '.join(allowed)})."
+        # MED-02: an empty allowlist DENIES all lab-subnet sweeps (fail-closed).
+        if not allowed:
+            return False, ("No authorized lab subnets are configured "
+                           "(DISCOVERY_AUTHORIZED_SUBNETS empty); lab-subnet discovery is denied.")
+        is_allowlisted = False
+        for allowed_sub in allowed:
+            try:
+                if net.subnet_of(ipaddress.ip_network(allowed_sub, strict=False)):
+                    is_allowlisted = True
+                    break
+            except Exception:
+                pass
+        if not is_allowlisted:
+            return False, f"Subnet {subnet_clean} is not in the declared lab allowlist ({', '.join(allowed)})."
 
         return True, ""
 
@@ -429,8 +432,19 @@ class TargetInventory:
                 "detected_ports": sorted(list(set((detected_ports or []) + (existing.get("detected_ports") or [])))),
                 "services": services if services is not None else existing.get("services") or [],
                 "discovery_timestamp": existing.get("discovery_timestamp") or _now_iso(),
-                "authorization_status": authorization_status or existing.get("authorization_status") or "pending",
-                "authorization_reason": authorization_reason or existing.get("authorization_reason") or "",
+                # HIGH-01: passive rediscovery must never downgrade an authorized target.
+                "authorization_status": (
+                    "authorized"
+                    if existing.get("authorization_status") == "authorized"
+                    and authorization_status in (None, "", "pending")
+                    else (authorization_status or existing.get("authorization_status") or "pending")
+                ),
+                "authorization_reason": (
+                    existing.get("authorization_reason") or ""
+                    if existing.get("authorization_status") == "authorized"
+                    and authorization_status in (None, "", "pending")
+                    else (authorization_reason or existing.get("authorization_reason") or "")
+                ),
                 "selected": existing.get("selected", False),
             }
             self._targets[ip] = record
@@ -627,6 +641,15 @@ class DiscoveryService:
         if not ok:
             return False, reason, {}
 
+        # HIGH-02: atomic concurrency limit — count active scans and reserve a slot
+        # under the lock so simultaneous requests cannot race past the limit.
+        _ACTIVE = (ScanState.PENDING, ScanState.RUNNING)
+        with self._lock:
+            active = sum(1 for sc in self._scans.values() if sc.state in _ACTIVE)
+            if active >= settings.discovery_max_concurrent_scans:
+                return False, (f"Discovery concurrency limit reached "
+                               f"({settings.discovery_max_concurrent_scans} active scans)."), {}
+
         scan_id = str(uuid.uuid4())
         scan = DiscoveryScan(
             scan_id=scan_id,
@@ -669,8 +692,21 @@ class DiscoveryService:
         return True, "Discovery scan started.", scan.as_dict()
 
     def _run_scan_thread(self, scan: DiscoveryScan) -> None:
-        scan.started_at = _now_iso()
-        scan.state = ScanState.RUNNING
+        # MED-01: a scan cancelled (or otherwise terminal) before the worker starts
+        # must NOT be forced back to RUNNING. Transition atomically under the lock.
+        with self._lock:
+            if scan.state in (ScanState.CANCELLED, ScanState.COMPLETED,
+                              ScanState.FAILED, ScanState.STOPPED):
+                return
+            scan.started_at = _now_iso()
+            scan.state = ScanState.RUNNING
+            if scan.execution_id:
+                try:
+                    registry.transition(scan.execution_id, ExecState.RUNNING)
+                except InvalidTransition:
+                    pass
+                except Exception:
+                    pass
 
         try:
             if scan.mode == "tailnet":

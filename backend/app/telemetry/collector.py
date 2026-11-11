@@ -324,6 +324,43 @@ def _tailnet_peer_ips() -> set[str]:
         return set()
 
 
+def _default_route_subnet():
+    """The live shared/default-route IPv4 subnet (the hotspot/LAN Kali is on), or None."""
+    import ipaddress, re, subprocess
+    try:
+        r = subprocess.run(["ip", "-o", "-4", "route", "show", "default"],
+                           capture_output=True, text=True, timeout=3)
+        parts = r.stdout.split()
+        dev = parts[parts.index("dev") + 1] if "dev" in parts else None
+        if not dev:
+            return None
+        a = subprocess.run(["ip", "-o", "-4", "addr", "show", "dev", dev],
+                           capture_output=True, text=True, timeout=3)
+        m = re.search(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", a.stdout)
+        return ipaddress.ip_network(m.group(1), strict=False) if m else None
+    except Exception:
+        return None
+
+
+def prohibited_networks() -> set:
+    """Subnets that recon/discovery may NEVER target: configured prohibited CIDRs
+    PLUS the live shared/default-route subnet (so we never scan the Wi-Fi/hotspot
+    Kali itself is attached to, with third-party devices on it)."""
+    import ipaddress
+    nets = set()
+    for tok in (settings.discovery_prohibited_subnets or "").split(","):
+        tok = tok.strip()
+        if tok:
+            try:
+                nets.add(ipaddress.ip_network(tok, strict=False))
+            except Exception:
+                pass
+    shared = _default_route_subnet()
+    if shared is not None:
+        nets.add(shared)
+    return nets
+
+
 def authorize_recon_target(target: str) -> tuple[bool, str]:
     """Fail-closed authorization for an on-demand recon probe entered in the UI.
 
@@ -340,6 +377,15 @@ def authorize_recon_target(target: str) -> tuple[bool, str]:
         return False, f"'{target}' is not a valid IPv4 literal (no hostnames/DNS/IPv6)."
     if ip.is_loopback:
         return False, "Loopback is not a valid recon target."
+    # Prohibited subnets (shared hotspot/LAN) are rejected BEFORE the RFC1918 allow.
+    # Fail closed if policy evaluation raises.
+    try:
+        for net in prohibited_networks():
+            if ip in net:
+                return False, (f"'{target}' is in a prohibited subnet ({net}); shared "
+                               f"hotspot/LAN networks are not scannable.")
+    except Exception:
+        return False, "authorization policy evaluation failed (fail-closed)."
     if ip.is_private:
         return True, ""  # RFC1918 lab space
     # Tailscale CGNAT range: allow only if it is an actual current tailnet peer.

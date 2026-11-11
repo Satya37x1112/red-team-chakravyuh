@@ -189,8 +189,14 @@ def test_validate_scope_lab_subnet_disabled_by_default():
 
 
 def test_validate_scope_authorized_lab_subnet_allowed():
-    """Authorized lab subnet with explicit enablement must pass."""
-    ok, err = validate_discovery_scope("lab_subnet", "192.168.100.0/24", enable_lab_subnet=True)
+    """Authorized lab subnet (present in the allowlist) with explicit enablement must pass.
+
+    MED-02: an empty allowlist now fail-closed denies; the subnet must be explicitly
+    allowlisted, so this test declares it as an authorized lab subnet."""
+    ok, err = validate_discovery_scope(
+        "lab_subnet", "192.168.100.0/24", enable_lab_subnet=True,
+        authorized_subnets=["192.168.100.0/24"],
+    )
     assert ok is True
     assert err == ""
 
