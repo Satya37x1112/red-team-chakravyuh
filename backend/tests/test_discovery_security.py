@@ -113,3 +113,28 @@ def test_low01_tailnet_peer_mapping_no_implicit_auth(monkeypatch):
     assert p["hostname"] == "opensoc-windows" and "100.80.167.51" in str(p.get("ip") or p.get("tailscale_ip") or p)
     assert p["os"] == "windows" and p["online"] is True
     assert p["authorization_status"] == "pending"  # discovered != authorized
+
+
+# ---- Stage9: stale selection must be cleared when target is not authorized ----
+def test_stage9_stale_selection_cleared_when_unauthorized():
+    # simulate a target that is selected but only pending (stale)
+    target_inventory._targets["100.80.167.51"] = {
+        "ip": "100.80.167.51", "authorization_status": "pending", "selected": True,
+    }
+    target_inventory.upsert("100.80.167.51", reachability_status="reachable")
+    rec = target_inventory.get("100.80.167.51")
+    assert rec["authorization_status"] == "pending"
+    assert rec["selected"] is False  # stale selection cleared
+
+def test_stage9_authorized_selection_preserved_on_rediscovery():
+    target_inventory.select("192.168.56.30")  # authorize + select
+    before = target_inventory.get("192.168.56.30")
+    assert before["authorization_status"] == "authorized" and before["selected"] is True
+    target_inventory.upsert("192.168.56.30", reachability_status="reachable")  # passive rediscovery
+    after = target_inventory.get("192.168.56.30")
+    assert after["authorization_status"] == "authorized" and after["selected"] is True
+
+def test_stage9_online_status_carried_into_inventory():
+    target_inventory.upsert("192.168.56.40", online=True, last_seen="2026-11-11T00:00:00Z")
+    rec = target_inventory.get("192.168.56.40")
+    assert rec["online"] is True and rec["last_seen"] == "2026-11-11T00:00:00Z"

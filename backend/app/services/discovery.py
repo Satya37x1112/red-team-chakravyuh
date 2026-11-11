@@ -419,9 +419,17 @@ class TargetInventory:
         services: Optional[list[dict[str, Any]]] = None,
         authorization_status: str = "pending",
         authorization_reason: str = "",
+        online: Optional[bool] = None,
+        last_seen: Optional[str] = None,
     ) -> dict[str, Any]:
         with self._lock:
             existing = self._targets.get(ip, {})
+            # HIGH-01 / stale-selection: preserve an authorized target on passive
+            # rediscovery, but a target is "selected" ONLY while it is authorized.
+            _preserve = (existing.get("authorization_status") == "authorized"
+                         and authorization_status in (None, "", "pending"))
+            final_auth = "authorized" if _preserve else (authorization_status or existing.get("authorization_status") or "pending")
+            final_reason = (existing.get("authorization_reason") or "") if _preserve else (authorization_reason or existing.get("authorization_reason") or "")
             record = {
                 "ip": ip,
                 "hostname": hostname or existing.get("hostname") or ip,
@@ -432,20 +440,12 @@ class TargetInventory:
                 "detected_ports": sorted(list(set((detected_ports or []) + (existing.get("detected_ports") or [])))),
                 "services": services if services is not None else existing.get("services") or [],
                 "discovery_timestamp": existing.get("discovery_timestamp") or _now_iso(),
-                # HIGH-01: passive rediscovery must never downgrade an authorized target.
-                "authorization_status": (
-                    "authorized"
-                    if existing.get("authorization_status") == "authorized"
-                    and authorization_status in (None, "", "pending")
-                    else (authorization_status or existing.get("authorization_status") or "pending")
-                ),
-                "authorization_reason": (
-                    existing.get("authorization_reason") or ""
-                    if existing.get("authorization_status") == "authorized"
-                    and authorization_status in (None, "", "pending")
-                    else (authorization_reason or existing.get("authorization_reason") or "")
-                ),
-                "selected": existing.get("selected", False),
+                "authorization_status": final_auth,
+                "authorization_reason": final_reason,
+                # Stale-selection guard: a target may remain selected ONLY if authorized.
+                "selected": bool(existing.get("selected", False)) and final_auth == "authorized",
+                "online": online if online is not None else existing.get("online"),
+                "last_seen": last_seen if last_seen is not None else existing.get("last_seen"),
             }
             self._targets[ip] = record
             return dict(record)
@@ -840,6 +840,8 @@ class DiscoveryService:
                 services=service_details,
                 authorization_status="pending",
                 authorization_reason="Discovered tailnet peer",
+                online=p.get("online"),
+                last_seen=p.get("last_seen"),
             )
             scan.found_hosts.append(host_dict)
             scan.scanned_hosts += 1
