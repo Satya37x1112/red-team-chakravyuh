@@ -641,15 +641,10 @@ class DiscoveryService:
         if not ok:
             return False, reason, {}
 
-        # HIGH-02: atomic concurrency limit — count active scans and reserve a slot
-        # under the lock so simultaneous requests cannot race past the limit.
+        # HIGH-02 (atomic): count active scans AND reserve the slot (insert the new
+        # PENDING scan) under ONE lock acquisition, so two simultaneous requests
+        # cannot both pass the limit check before either is registered (TOCTOU).
         _ACTIVE = (ScanState.PENDING, ScanState.RUNNING)
-        with self._lock:
-            active = sum(1 for sc in self._scans.values() if sc.state in _ACTIVE)
-            if active >= settings.discovery_max_concurrent_scans:
-                return False, (f"Discovery concurrency limit reached "
-                               f"({settings.discovery_max_concurrent_scans} active scans)."), {}
-
         scan_id = str(uuid.uuid4())
         scan = DiscoveryScan(
             scan_id=scan_id,
@@ -658,6 +653,12 @@ class DiscoveryService:
             max_hosts=max_hosts,
             timeout=timeout,
         )
+        with self._lock:
+            active = sum(1 for sc in self._scans.values() if sc.state in _ACTIVE)
+            if active >= settings.discovery_max_concurrent_scans:
+                return False, (f"Discovery concurrency limit reached "
+                               f"({settings.discovery_max_concurrent_scans} active scans)."), {}
+            self._scans[scan_id] = scan  # reserve slot atomically
 
         # 2. Register in ExecutionRegistry
         rec = ExecutionRecord(
@@ -681,9 +682,7 @@ class DiscoveryService:
             payload={"scan_id": scan_id, "mode": mode, "subnet": subnet, "max_hosts": max_hosts},
         )
 
-        with self._lock:
-            self._scans[scan_id] = scan
-
+        # (scan already registered atomically above)
         # Launch background runner thread
         t = threading.Thread(target=self._run_scan_thread, args=(scan,), daemon=True)
         scan._thread = t

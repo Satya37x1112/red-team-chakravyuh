@@ -138,3 +138,31 @@ def test_stage9_online_status_carried_into_inventory():
     target_inventory.upsert("192.168.56.40", online=True, last_seen="2026-11-11T00:00:00Z")
     rec = target_inventory.get("192.168.56.40")
     assert rec["online"] is True and rec["last_seen"] == "2026-11-11T00:00:00Z"
+
+
+# ---- HIGH-02 TOCTOU: slot reserved atomically (count + insert under one lock) ----
+def test_high02_slot_reserved_synchronously(monkeypatch):
+    monkeypatch.setattr(settings, "discovery_max_concurrent_scans", 1)
+    monkeypatch.setattr(discovery_service, "_run_scan_thread", lambda scan: None)  # no-op worker
+    ok1, _, data = discovery_service.start_scan(mode="tailnet")
+    assert ok1 is True
+    assert data["scan_id"] in discovery_service._scans  # reserved immediately
+    ok2, reason2, _ = discovery_service.start_scan(mode="tailnet")  # over limit
+    assert ok2 is False and "concurrency" in reason2.lower()
+
+def test_high02_concurrent_requests_do_not_overshoot(monkeypatch):
+    import threading
+    monkeypatch.setattr(settings, "discovery_max_concurrent_scans", 2)
+    hold = threading.Event()
+    monkeypatch.setattr(discovery_service, "_run_scan_thread", lambda scan: hold.wait(2))  # hold the slot
+    results = []
+    barrier = threading.Barrier(8)
+    def worker():
+        barrier.wait()
+        ok, _, _ = discovery_service.start_scan(mode="tailnet")
+        results.append(ok)
+    ts = [threading.Thread(target=worker) for _ in range(8)]
+    for t in ts: t.start()
+    for t in ts: t.join()
+    hold.set()
+    assert sum(1 for r in results if r) == 2  # never more than the limit
