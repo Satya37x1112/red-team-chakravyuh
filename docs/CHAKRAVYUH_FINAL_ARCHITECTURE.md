@@ -156,6 +156,7 @@ The architecture is explicitly designed to remain fully functional, secure, and 
 ## 5. Subsystem Component Breakdown
 
 ### 5.1 Presentation Layer (React 18 + TypeScript + Vite)
+- **`src/pages/NetworkDiscovery.tsx`**: Network Discovery & Target Selection console; enumerates interfaces and subnets, discovers Tailscale peer nodes, conducts bounded lab-subnet sweeps, manages target inventory, enforces explicit target selection, and bridges directly to One-Click Assessment.
 - **`src/components/OneClickAssessment.tsx`**: Dashboard one-click assessment orchestrator; executes target validation, reachability probing, non-destructive port recon, purple-team SOC signatures, and local RockYou hash auditing in one click, rendering real-time step statuses and the target VM's open ports display.
 - **`src/pages/AIPlanner.tsx`**: Operator interface for submitting objectives, previewing dry-run gateway verdicts, and tracking iterative feedback loops.
 - **`src/pages/TargetRecon.tsx`**: Blackbox reconnaissance interface; executes non-destructive TCP probes against authorized lab/tailnet IPs and displays open ports and SOC proof notes.
@@ -167,6 +168,7 @@ The architecture is explicitly designed to remain fully functional, secure, and 
 
 ### 5.2 API Orchestration Layer (FastAPI)
 - **`app/main.py`**: Application entry point, CORS middleware, database lifespan management, and `/ws` WebSocket endpoint.
+- **`app/api/network.py`**: Network Discovery and Target Selection routes (`GET /api/network/interfaces`, `GET /api/network/subnets`, `GET /api/network/tailnet`, `POST /api/network/discovery/start`, `GET /api/network/discovery/{id}`, `GET /api/network/discovery/{id}/hosts`, `POST /api/network/discovery/{id}/cancel`, `POST /api/network/targets/select`, `GET /api/network/targets`).
 - **`app/api/assessment.py`**: One-click assessment execution and query routes (`POST /api/assessment/run`, `GET /api/assessment/latest`).
 - **`app/api/operations.py`**: AI operations interface (`/plan` dry-run preview, `/` iterative execution loop, `/{id}` detail history).
 - **`app/api/execution.py`**: Direct execution submission front door (`/submit`, `/{id}`, `/{id}/cancel`, `/killswitch`).
@@ -187,6 +189,7 @@ The architecture is explicitly designed to remain fully functional, secure, and 
 - **`app/safety/audit.py`**: Central audit recording with recursive masking of passwords, keys, and tokens.
 
 ### 5.4 Adapters, Services & Telemetry Engines
+- **`app/services/discovery.py`**: Network Discovery & Target Selection service; manages active interface enumeration, Tailnet peer enumeration, bounded TCP-connect scanning (ports 22, 80, 443, 445, 3389, 8080), scope validation (fail-closed on 10.81.189.0/24 hotspot and public IPs), target inventory with selection states, and Execution Registry / Kill Switch lifecycle tracking.
 - **`app/services/assessment.py`**: One-click assessment pipeline engine; coordinates target authorization, reachability probing, port discovery, bounded purple-team signatures (DDoS, Brute force, RAT), and offline RockYou hash auditing.
 - **`app/services/wordlist.py`**: RockYou wordlist discovery service; supports `.gz` streaming and plain `.txt`, calculates entry metadata, masks secrets, and ensures integrity.
 - **`app/services/hash_audit.py`**: Offline password hash auditing service; identifies hash algorithms (NTLM, MD5, SHA-1, SHA-256, SHA-512, bcrypt) and performs bounded dictionary comparison against RockYou.

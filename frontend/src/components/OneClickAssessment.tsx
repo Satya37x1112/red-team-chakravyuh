@@ -86,8 +86,18 @@ export function OneClickAssessment() {
   const [singleSoc, setSingleSoc] = useState<Record<string, unknown> | null>(null);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
 
-  // Load previous assessment on mount if available
+  // Load previous assessment on mount if available, or populate selected target
   useEffect(() => {
+    const paramTarget = new URLSearchParams(window.location.search).get("target");
+    if (paramTarget) {
+      setTarget(paramTarget);
+    } else {
+      api.networkTargets().then((list) => {
+        const active = list.find((t) => t.selected);
+        if (active?.ip) setTarget(active.ip);
+      }).catch(() => undefined);
+    }
+
     api
       .assessmentLatest()
       .then((data) => {
@@ -95,7 +105,7 @@ export function OneClickAssessment() {
           const res = data as unknown as AssessmentResult;
           setResult(res);
           setSteps(res.steps);
-          if (res.target) setTarget(res.target);
+          if (!paramTarget && res.target) setTarget(res.target);
           if (Array.isArray(res.open_port_details)) {
             setOpenPorts(res.open_port_details);
           }

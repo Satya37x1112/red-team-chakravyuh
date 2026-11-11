@@ -12,6 +12,7 @@ from .api.central import router as central_router
 from .api.execution import router as execution_router
 from .api.integrations import router as integrations_router
 from .api.llm import router as llm_router
+from .api.network import router as network_router
 from .api.operations import router as operations_router
 from .api.routes import router
 from .api.transfer import router as transfer_router
@@ -49,6 +50,7 @@ app.include_router(central_router)
 app.include_router(execution_router)
 app.include_router(operations_router)
 app.include_router(llm_router)
+app.include_router(network_router)
 
 
 @app.get("/")

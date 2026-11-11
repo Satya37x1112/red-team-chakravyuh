@@ -162,6 +162,15 @@ class Settings(BaseSettings):
     remote_access_domain: str = ""           # optional AD domain ("" = local auth)
     remote_access_max_run_seconds: int = 30  # hard cap on each bounded remote op
 
+    # ---- Section 5: Network Discovery & Target Selection ----
+    discovery_enabled: bool = True
+    discovery_default_source: str = "tailnet"
+    discovery_lab_subnet_enabled: bool = False
+    discovery_authorized_subnets: str = ""
+    discovery_max_hosts: int = 64
+    discovery_connect_timeout: float = 0.5
+    discovery_ports: str = "22,80,443,445,3389,8080"
+
     def api_key_for(self, kind: str) -> str:
         """The OpenRouter key for a module, falling back to the shared key."""
         per_kind = {

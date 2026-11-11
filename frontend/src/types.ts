@@ -411,3 +411,84 @@ export interface LlmTestResult {
   reason: string;
   errors: string[];
 }
+
+export interface DiscoveredHost {
+  ip: string;
+  hostname: string;
+  interface: string;
+  subnet: string;
+  discovery_source: string;
+  reachability_status: "reachable" | "unreachable" | "unavailable" | string;
+  detected_ports: number[];
+  services: Array<{ port: number; service: string; confidence: string }>;
+  discovery_timestamp: string;
+  authorization_status: "authorized" | "unauthorized" | "pending" | string;
+  authorization_reason: string;
+  selected?: boolean;
+}
+
+export interface NetworkIface {
+  interface: string;
+  ip: string;
+  netmask: string;
+  broadcast: string | null;
+  cidr: string;
+  mac: string | null;
+  is_up: boolean;
+  speed_mbps: number;
+  mtu: number;
+  category: string;
+  authorized_for_discovery: boolean;
+  rejection_reason: string;
+}
+
+export interface NetworkSubnet {
+  subnet: string;
+  interface: string;
+  category: string;
+  authorized_for_discovery: boolean;
+  rejection_reason: string;
+  host_ip: string;
+}
+
+export interface TailnetDevice {
+  ip: string;
+  hostname: string;
+  dns_name: string;
+  os: string;
+  online: boolean;
+  last_seen: string | null;
+  reachability_status: string;
+  discovery_source: string;
+  authorization_status: string;
+}
+
+export interface TailnetStatus {
+  available: boolean;
+  self: {
+    hostname: string;
+    dns_name: string;
+    tailscale_ip: string;
+    os: string;
+    online: boolean;
+  };
+  peers: TailnetDevice[];
+  total_peers: number;
+  error: string | null;
+}
+
+export interface DiscoveryScanStatus {
+  scan_id: string;
+  mode: string;
+  subnet: string | null;
+  state: "PENDING" | "RUNNING" | "COMPLETED" | "CANCELLED" | "STOPPED" | "FAILED" | string;
+  started_at: string | null;
+  completed_at: string | null;
+  total_hosts: number;
+  scanned_hosts: number;
+  current_host: string;
+  found_count: number;
+  progress_percent: number;
+  error: string | null;
+  execution_id: string | null;
+}

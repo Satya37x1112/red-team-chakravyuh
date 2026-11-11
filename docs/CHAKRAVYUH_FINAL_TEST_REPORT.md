@@ -22,7 +22,8 @@ Across Stages 1 through 6, the test suite expanded systematically to cover all a
 | **Stage 5 — Network Validation** | 171 | 171 | 1 | Passed (code 0) | Passed (code 0) | Tailscale routing table 52 verified; target reachability confirmed. |
 | **Stage 6 — Full E2E Verification** | 171 | 171 | 1 | Passed (code 0) | Passed (code 0) | Full dataflow traced; hybrid AI & honest fallback validated. |
 | **Stage 7 — Lab Attacks & Core Functions** | 198 | 198 | 1 | Passed (code 0) | Passed (code 0) | Real RockYou/Hash auditing, real Locust metrics, authenticated file transfer, 0 regressions. |
-| **Stage 8 — One-Click Assessment** | **208** | **208** | **1** | **Passed (code 0)** | **Passed (code 0)** | **One-click multi-module orchestration, live step checklist, open ports display, 0 regressions.** |
+| **Stage 8 — One-Click Assessment** | 208 | 208 | 1 | Passed (code 0) | Passed (code 0) | One-click multi-module orchestration, live step checklist, open ports display, 0 regressions. |
+| **Stage 9 — Network Discovery & Target Selection** | **231** | **231** | **1** | **Passed (code 0)** | **Passed (code 0)** | **Active interface enumeration, Tailnet peer discovery, bounded lab sweep, target inventory & selection, fail-closed authorization, 0 regressions.** |
 
 ---
 
@@ -39,13 +40,13 @@ PYTHONPATH="$PWD:$SP" /usr/bin/python3.13 -m pytest -v
 
 ### 2.2 Execution Metrics & Exit Code
 - **Exit Code**: `0`
-- **Total Tests Collected**: `208`
-- **Passed**: `208`
+- **Total Tests Collected**: `231`
+- **Passed**: `231`
 - **Failed**: `0`
 - **Skipped**: `0`
 - **Deselected**: `0`
 - **Warnings**: `1`
-- **Execution Duration**: `16.76s` (full quiet regression run)
+- **Execution Duration**: `11.17s` (full quiet regression run)
 
 ### 2.3 Breakdown by Test Module
 
@@ -57,6 +58,7 @@ PYTHONPATH="$PWD:$SP" /usr/bin/python3.13 -m pytest -v
 | `tests/test_availability_module.py` | 6 | **PASSED (6/6)** | Target availability pre/post probes, Locust latency percentiles (p50/p95), error parsing, target host resource status ("Unavailable"). |
 | `tests/test_blackbox_telemetry.py` | 23 | **PASSED (23/23)** | IP authorization (RFC1918/tailnet), public IP rejection, port sweeps, budget caps. |
 | `tests/test_concurrency.py` | 3 | **PASSED (3/3)** | Race conditions, thread-safe gateway locking, concurrent execution limits. |
+| `tests/test_discovery.py` | 23 | **PASSED (23/23)** | Active interface enumeration, Tailnet peer discovery, bounded lab sweep, scope validation (hotspot & public rejection), target inventory, authorization selection, cancellation, kill switch, registry & audit. |
 | `tests/test_execution_flow.py` | 8 | **PASSED (8/8)** | Approved plan dispatching, mock adapter routing, secret masking in results. |
 | `tests/test_feedback.py` | 8 | **PASSED (8/8)** | CONTINUE/MODIFY/STOP decision engine; deterministic guardrails overriding AI. |
 | `tests/test_gateway.py` | 10 | **PASSED (10/10)** | Fail-closed checks, kill-switch blocking, disabled module rejections, param clamping. |
@@ -70,7 +72,7 @@ PYTHONPATH="$PWD:$SP" /usr/bin/python3.13 -m pytest -v
 | `tests/test_recon_killswitch.py` | 5 | **PASSED (5/5)** | Kill-switch blocking on `/telemetry/probe` & `/attacks/soc-activity`, audit logging. |
 | `tests/test_remote_access.py` | 33 | **PASSED (33/33)** | NetExec 5 operations, `/dev/shm` 0600 credentials, password scrubbing, argv safety. |
 | `tests/test_transfer_module.py` | 9 | **PASSED (9/9)** | Windows receiver token auth, path traversal sanitization, 10MB limit, SHA-256 pre/post integrity, UBA anomaly logging. |
-| **TOTAL** | **208** | **PASSED (208/208)** | **100% Pass Rate** |
+| **TOTAL** | **231** | **PASSED (231/231)** | **100% Pass Rate** |
 
 ### 2.4 Warning Analysis
 - **Warning Message**:

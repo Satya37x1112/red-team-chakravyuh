@@ -12,6 +12,10 @@ import type {
   LlmConfig,
   LlmTestResult,
   OperationDetail,
+  DiscoveredHost,
+  DiscoveryScanStatus,
+  NetworkIface,
+  NetworkSubnet,
   OperationPlanPreview,
   OperationSummary,
   PentestReport,
@@ -20,6 +24,7 @@ import type {
   SessionBrief,
   SessionDetail,
   SmartAnalysis,
+  TailnetStatus,
   Telemetry,
   VervetEmulateResult,
 } from "./types";
@@ -125,6 +130,25 @@ export const api = {
     post("/api/assessment/run", body).then(json<Record<string, unknown>>),
   assessmentLatest: () =>
     fetch("/api/assessment/latest").then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown> | null>) : null)),
+
+  // Network Discovery & Target Selection
+  networkInterfaces: () => fetch("/api/network/interfaces").then(json<NetworkIface[]>),
+  networkSubnets: () => fetch("/api/network/subnets").then(json<NetworkSubnet[]>),
+  networkTailnet: () => fetch("/api/network/tailnet").then(json<TailnetStatus>),
+  networkDiscoveryStart: (body: {
+    mode: "tailnet" | "lab_subnet";
+    subnet?: string;
+    enable_lab_subnet?: boolean;
+    max_hosts?: number;
+    timeout?: number;
+  }) => post("/api/network/discovery/start", body).then(json<DiscoveryScanStatus>),
+  networkDiscoveryStatus: (scanId: string) => fetch(`/api/network/discovery/${scanId}`).then(json<DiscoveryScanStatus>),
+  networkDiscoveryHosts: (scanId: string) => fetch(`/api/network/discovery/${scanId}/hosts`).then(json<DiscoveredHost[]>),
+  networkDiscoveryCancel: (scanId: string) =>
+    post(`/api/network/discovery/${scanId}/cancel`).then(json<{ message: string; scan_id: string }>),
+  networkTargets: () => fetch("/api/network/targets").then(json<DiscoveredHost[]>),
+  networkSelectTarget: (body: { ip: string; hostname?: string }) =>
+    post("/api/network/targets/select", body).then(json<{ status: string; message: string; target: DiscoveredHost }>),
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),

@@ -22,6 +22,7 @@ In accordance with strict verification integrity, the following limitations have
 | **LIM-06** | Python 3.13 Explicit Invocation Requirement | Runtime Environment | System Python upgraded to 3.14 while `.venv` libraries reside in `python3.13/site-packages`. | Rebuild `.venv` under Python 3.14 (`python3.14 -m venv .venv`). |
 | **LIM-07** | In-Memory Execution Registry Lifecycle | Data Persistence | Registry state and active execution tracking reset upon backend restart. | Back Registry state with persistent SQLite / Redis store if needed. |
 | **LIM-08** | Windows VM Externally Managed | Environmental Scope | Target Windows host is managed externally; no host agents can be installed. | Continue using agentless blackbox TCP and remote SMB interfaces. |
+| **LIM-09** | Lab Subnet Discovery Scope Restrictions | Scope Governance | Dedicated lab-subnet scanning disabled by default; shared hotspot (10.81.189.0/24) and public IPs strictly prohibited; discovered != authorized. | Use default Tailnet discovery or declare explicit lab allowlists with confirmation. |
 
 ---
 

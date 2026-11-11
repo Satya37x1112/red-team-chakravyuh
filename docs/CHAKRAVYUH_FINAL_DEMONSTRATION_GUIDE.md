@@ -175,6 +175,29 @@ Follow the procedures in `docs/CHAKRAVYUH_FINAL_DEPLOYMENT_GUIDE.md`:
    - **Execution Checklist**: Renders live per-step statuses (`DONE`, `SKIPPED`, `UNAVAILABLE`, `BLOCKED`, `STOPPED`) with execution timing and verifiable audit trail records.
    - **Kill Switch Integration**: Pressing `Win + Alt + K` or clicking Stop mid-sequence immediately halts all remaining steps.
 
+### Part L: Network Discovery & Target Selection Walkthrough (5 Mins)
+1. Navigate to **Lab → Network Discovery** (`/discovery`).
+2. **Interface Classification & Scope Governance**:
+   - Point out the active network interface cards:
+     - `eth0` (`10.81.189.204/24`): Categorized as `hotspot_disallowed`. Highlight the red safety badge and explanation: *"Local shared hotspot network (10.81.189.0/24) is strictly disallowed."*
+     - `tailscale0` (`100.80.154.42/32`): Categorized as `tailnet`. Highlight the green badge: *"Tailnet peer discovery is authorized by default."*
+     - `lo` (`127.0.0.1/8`): Categorized as `loopback` (disallowed for network scans).
+3. **Tailnet Peer Discovery**:
+   - The platform discovers Tailscale mesh peers via `tailscale status --json`.
+   - Point out peer devices: `CyberKabbali` (`100.84.184.33`, Windows, online), `OpenSOC-Windows` (`100.80.167.51`, Windows, offline), `soc-server` (Linux), etc.
+   - Click "Scan Tailnet Peers": watch the real-time progress bar scan permitted ports (22, 80, 443, 445, 3389, 8080) on discovered peers.
+4. **Dedicated Lab-Subnet Sweep Controls**:
+   - Dedicated lab-subnet discovery is disabled by default.
+   - Check the explicit authorization checkbox: "Enable Dedicated Lab Subnet Discovery".
+   - Demonstrate safety boundaries: attempting to scan `10.81.189.0/24` (hotspot) or `8.8.8.0/24` (public) fails closed immediately with an explicit policy refusal alert.
+   - Enter an authorized private lab subnet (e.g. `192.168.100.0/24`, max 64 hosts): click "Start Lab Subnet Sweep" and observe bounded scanning, progress tracking, and real-time cancellation.
+5. **Target Selection & Authorization Workflow**:
+   - Explain the core principle: **Discovered != Authorized**. A discovered host starts in `pending` or `unauthorized` status.
+   - Click "Select Target" next to `100.84.184.33`.
+   - The backend runs `authorize_recon_target(100.84.184.33)`, confirms eligibility, records `TARGET_SELECTED` in the SQLite audit trail, updates the DB `Target` row, and displays the glowing active target banner:
+     `ACTIVE TARGET: 100.84.184.33 (CyberKabbali) — Authorized Lab Target`.
+   - Click "Run Assessment on 100.84.184.33 →": the dashboard pre-fills the authorized target IP and is ready for one-click assessment execution.
+
 ---
 
 ## 4. Addressing Reviewer Inquiries
