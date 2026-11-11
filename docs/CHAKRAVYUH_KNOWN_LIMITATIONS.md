@@ -15,9 +15,9 @@ In accordance with strict verification integrity, the following limitations have
 | Ref ID | Limitation Title | Category | Operational Impact | Remediation Prerequisite |
 |---|---|---|---|---|
 | **LIM-01** | OpenRouter API Key Authentication Failure | External Credential | Cloud LLM inference returns HTTP 401; planner operates in deterministic fallback mode. | Rotate/update `OPENROUTER_API_KEY` in `backend/.env`. |
-| **LIM-02** | Target-Owner Authorization for Live Testing | Legal / Governance | Live execution of Hydra, Locust, and NetExec against `100.80.167.51` is halted. | Obtain documented authorization from account `onlymahibhatt@`. |
+| **LIM-02** | Target Reachability & Authorization Status | Network / Governance | Target `100.80.167.51` currently offline on tailnet; live tests honestly report unreachable/offline. | Boot Windows target VM `opensoc-windows` and ensure Tailscale daemon is connected. |
 | **LIM-03** | Nmap Network Scanner Not Implemented | Architectural Scope | No Nmap CLI adapter exists in codebase; network scanning limited to TCP connect probes. | Retain as documented; design/implement future Nmap wrapper if required. |
-| **LIM-04** | Recon Routes Untracked in Execution Registry | Architectural Scope | `/telemetry/probe` and `/attacks/soc-activity` audit centrally but bypass Registry state machine. | Retain as audited direct routes or migrate into Registry lifecycle in Stage 7+. |
+| **LIM-04** | Direct Attacks Remediated; Recon Routes Audited | Architectural Scope | `/api/attacks/start` is wrapped in SafetyGateway & Registry. Recon routes enforce kill-switch checks. | Remediation completed in Phase 5; all attacks pass through gateway evaluation. |
 | **LIM-05** | Browser Click-Through Automation Unverified | QA / Automation | Frontend verified by TypeScript typecheck & Vite build; interactive UI click-through unverified. | Install and configure Playwright/Puppeteer headless test harness. |
 | **LIM-06** | Python 3.13 Explicit Invocation Requirement | Runtime Environment | System Python upgraded to 3.14 while `.venv` libraries reside in `python3.13/site-packages`. | Rebuild `.venv` under Python 3.14 (`python3.14 -m venv .venv`). |
 | **LIM-07** | In-Memory Execution Registry Lifecycle | Data Persistence | Registry state and active execution tracking reset upon backend restart. | Back Registry state with persistent SQLite / Redis store if needed. |
@@ -45,11 +45,10 @@ In accordance with strict verification integrity, the following limitations have
 - **Impact**: Advanced scanning capabilities (OS fingerprinting, NSE scripts, UDP scanning) are unavailable.
 - **Required Remediation**: A future development phase may introduce an `NmapIntegration` wrapper conforming to the `Integration` base class.
 
-### LIM-04: Recon Routes Not Tracked in Execution Registry
-- **Technical Description**: The on-demand recon probe (`POST /api/telemetry/probe`) and purple-team activity generator (`POST /api/attacks/soc-activity`) enforce IP authorization and check kill-switch status, and record audit entries via `audit.RECON_PROBE` and `audit.RECON_SOC_ACTIVITY`. However, they execute synchronously and do not create records in `ExecutionRegistry`.
-- **System Behavior**: These actions do not appear in `GET /api/execution` listings and cannot be individually cancelled via `/api/execution/{id}/cancel` (though they are blocked globally if the kill switch is engaged).
-- **Impact**: Reconnaissance activities are audited in SQLite but do not share the active concurrency tracking of attack modules.
-- **Required Remediation**: Refactor recon endpoints to submit transient `ExecutionPlan` instances through `gateway.evaluate()` if full registry tracking is desired.
+### LIM-04: Direct Attack Endpoint Remediation & Recon Audit Status
+- **Technical Description**: Legacy endpoint `POST /api/attacks/start` previously bypassed the Safety Gateway. In Phase 5, this was remediated by constructing a dynamic `ExecutionPlan`, evaluating it through `SafetyGateway.evaluate()`, and registering it in `ExecutionRegistry`, while retaining the expected legacy JSON response. Recon routes (`POST /api/telemetry/probe` and `POST /api/attacks/soc-activity`) enforce IP authorization, fail-closed kill-switch checks, and audit logging.
+- **System Behavior**: All attacks are strictly subject to Safety Gateway allowlists, parameter clamping, and kill-switch termination.
+- **Impact**: Full authorization consistency across modern and legacy endpoints.
 
 ### LIM-05: Browser Click-Through Automation Unverified
 - **Technical Description**: Automated browser testing (driving the DOM, verifying button clicks, validating toasts interactively) is not configured in the test harness.

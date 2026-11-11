@@ -103,9 +103,56 @@ Follow the procedures in `docs/CHAKRAVYUH_FINAL_DEPLOYMENT_GUIDE.md`:
 2. Run the automated test proving secrets are scrubbed:
    ```bash
    cd backend && SP="$PWD/.venv/lib/python3.13/site-packages" \
-   PYTHONPATH="$SP" /usr/bin/python3.13 -m pytest tests/test_execution_flow.py -k "test_secrets_never_leak_to_result_or_audit" -v
+   PYTHONPATH="$PWD:$SP" /usr/bin/python3.13 -m pytest tests/test_execution_flow.py -k "test_secrets_never_leak_to_result_or_audit" -v
    ```
 3. Explain that passwords and API keys are recursively sanitized into `«redacted»` before hitting disk.
+
+### Part H: Authentication Testing & RockYou Auditing (4 Mins)
+1. Navigate to **Integrations → Password Auditing & Wordlist Console** (`/integrations` or Operation view).
+2. **RockYou Wordlist Inspection**:
+   - Tab 1 ("RockYou Wordlist"): Shows discovery of `/usr/share/wordlists/rockyou.txt.gz` (50.9 MB, ~14.3M canonical lines).
+   - Demonstrates that passwords are never returned raw or logged, and alternate wordlists are never silently substituted.
+3. **Offline Hash Auditing**:
+   - Tab 2 ("Offline Hash Audit"): Enter a target hash (e.g. NTLM, MD5, SHA-256, or bcrypt).
+   - Click "Identify Algorithm" → Automatically identifies format.
+   - Click "Audit Hash Against RockYou" → Performs bounded dictionary comparison against RockYou streaming entries.
+   - Shows matched vs unmatched confirmation with execution timing.
+4. **Live Authentication Validation**:
+   - Tab 3 ("Live Auth Validation"): Enter authorized target and non-admin account.
+   - Enter candidate passwords (clamped to max 3 attempts per run).
+   - Demonstrates immediate halt on success or lockout warning (`STATUS_ACCOUNT_LOCKED_OUT`), with masked account identifier (`la****r`).
+
+### Part I: Real Availability & HTTP Load Testing (Locust) (4 Mins)
+1. Navigate to **Integrations → Locust Load Test & Availability** (`/integrations`).
+2. Show the difference between:
+   - **Simulation Mode**: Generates synthetic load curve with zero packets sent; displays prominent amber banner `SIMULATION — NO NETWORK TRAFFIC GENERATED`.
+   - **Genuine Load Test**: Generates real HTTP traffic within backend caps (≤50 users, ≤120s duration).
+3. Execute real load test against an authorized endpoint:
+   - Performs automated pre-test reachability probe (HTTP status code, baseline latency).
+   - Collects real request counts, successful requests, failures, and throughput (req/s).
+   - Displays real latency percentiles: Average, Median (p50), and 95th Percentile (p95).
+   - Performs post-test reachability probe and computes latency delta to verify target service remained up.
+   - Shows explicit target host resource status: `CPU: Unavailable`, `RAM: Unavailable` (honestly reporting no target-side agent rather than fabricating metrics).
+   - Displays HTTP status and connection error breakdown table.
+
+### Part J: Authenticated Remote Data Transfer & Windows Receiver (4 Mins)
+1. Navigate to **Access → Authenticated Remote File Transfer** (`/remote`).
+2. **Windows Receiver Setup**:
+   - On the Windows lab machine, launch the visible Python receiver:
+     ```cmd
+     python tools\windows_receiver.py --port 8090 --token lab-transfer-secret-2026 --dir C:\LabData
+     ```
+   - Emphasize that this is transparent and operator-controlled: visible console window, strict token authentication, and path traversal prevention.
+3. **Connectivity Probe**:
+   - On Kali dashboard, enter target `http://100.80.167.51:8090` and token `lab-transfer-secret-2026`.
+   - Click "Check Receiver Connectivity" → verifies online state and authorization.
+4. **Initiate Transfer & SHA-256 Integrity Verification**:
+   - Select an approved lab test artifact.
+   - Click "Transfer File".
+   - Platform calculates pre-transfer SHA-256 hash.
+   - Receiver saves file and calculates post-receipt SHA-256 hash.
+   - Console displays **SHA-256 Integrity Verified** match badge.
+   - Platform routes transfer event into the UBA engine and displays anomaly scoring.
 
 ---
 

@@ -75,7 +75,7 @@ export const api = {
   vervetDescribe: () => fetch("/api/integrations/vervet/describe").then(json<Record<string, unknown>>),
   vervetEmulate: (body: { target: string; technique?: string }) =>
     post("/api/integrations/vervet/emulate", body).then(json<VervetEmulateResult>),
-  locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
+  locustRun: (body: { users?: number; spawn_rate?: number; run_seconds?: number; target_url?: string }) =>
     post("/api/integrations/locust/run", body).then(json<Record<string, unknown>>),
   locustSimulate: (body: { users?: number; spawn_rate?: number; run_seconds?: number }) =>
     post("/api/integrations/locust/simulate", body).then(json<Record<string, unknown>>),
@@ -103,6 +103,22 @@ export const api = {
   remoteAccessStatus: () => fetch("/api/integrations/remote_access").then(json<RemoteAccessStatus>),
   remoteAccessRun: (body: { operation: string; run_seconds?: number }) =>
     post("/api/integrations/remote_access/run", body).then(json<RemoteAccessResult>),
+
+  // Authentication Testing & RockYou / Offline Auditing
+  authRockyouStatus: () => fetch("/api/auth/rockyou/status").then(json<Record<string, unknown>>),
+  authIdentifyHash: (hash: string) => post("/api/auth/identify-hash", { hash }).then(json<Record<string, unknown>>),
+  authOfflineAudit: (body: { hash: string; algorithm?: string; max_candidates?: number; timeout_seconds?: number }) =>
+    post("/api/auth/offline-audit", body).then(json<Record<string, unknown>>),
+  authLiveValidate: (body: { target: string; service?: string; account?: string; passwords?: string[]; port?: number }) =>
+    post("/api/auth/live-validate", body).then(json<Record<string, unknown>>),
+
+  // Remote Data Transfer & Windows Receiver
+  transferCheckReceiver: (body: { target_url: string; auth_token?: string }) =>
+    post("/api/transfer/receiver/check", body).then(json<Record<string, unknown>>),
+  transferListFiles: () =>
+    fetch("/api/transfer/files").then(json<Array<{ name: string; path: string; size_bytes: number }>>),
+  transferSend: (body: { file_path: string; target_url: string; auth_token: string; destination_filename?: string }) =>
+    post("/api/transfer/send", body).then(json<Record<string, unknown>>),
 
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),

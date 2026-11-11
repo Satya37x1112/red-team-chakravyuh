@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Button, Empty, Icon, Panel, Pill, SectionLabel } from "../components/ui";
+import { WordlistPanel } from "../components/WordlistPanel";
 import type { CalderaAnalysis, CalderaSample, IntegrationStatus, VervetEmulateResult } from "../types";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -279,24 +280,27 @@ function VervetPanel({ status }: { status: IntegrationStatus }) {
 function LocustPanel({ status }: { status: IntegrationStatus }) {
   const runnable = status.available && status.detail?.runnable === true;
   const caps = (status.detail?.caps as { max_users?: number; max_spawn_rate?: number; max_run_seconds?: number }) ?? {};
+  const defaultTarget = (status.detail?.target_url as string | undefined) ?? "http://100.80.167.51:80";
+  const [targetUrl, setTargetUrl] = useState<string>(defaultTarget);
   const [users, setUsers] = useState<number>(caps.max_users ?? 10);
   const [rate, setRate] = useState<number>(caps.max_spawn_rate ?? 2);
   const [secs, setSecs] = useState<number>(Math.min(30, caps.max_run_seconds ?? 30));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   const run = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      setResult(await api.locustRun({ users, spawn_rate: rate, run_seconds: secs }));
+      setResult(await api.locustRun({ users, spawn_rate: rate, run_seconds: secs, target_url: targetUrl }));
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
       setBusy(false);
     }
-  }, [users, rate, secs]);
+  }, [users, rate, secs, targetUrl]);
 
   const simulate = useCallback(async () => {
     setBusy(true);
@@ -320,8 +324,8 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
 
   return (
     <Panel
-      title="Locust Load Test"
-      sub="The real DDoS driver. Fail-closed: runs only an operator locustfile at an authorized target."
+      title="Locust Load Test & Availability"
+      sub="Genuine HTTP traffic generator and availability telemetry analyzer. Fail-closed: bounded users, duration, and authorized targets."
       actions={<Pill tone={statusTone(status)}>{runnable ? "armed" : status.available ? "disarmed" : "unavailable"}</Pill>}
     >
       <div className="flex flex-col gap-3">
@@ -329,44 +333,73 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
         <DetailChips detail={status.detail} />
         {runnable ? (
           <>
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-2">
               <label className="flex flex-col gap-1 text-2xs text-muted">
-                Users (≤{caps.max_users})
-                <input
-                  type="number"
-                  min={1}
-                  max={caps.max_users}
-                  value={users}
-                  onChange={(e) => setUsers(Number(e.target.value))}
-                  className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
-                />
+                Target URL (Authorized Lab Target)
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
+                    placeholder="http://100.80.167.51:80"
+                    className="h-8 flex-1 rounded border border-line bg-canvas px-2.5 font-mono text-xs text-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTargetUrl("http://100.80.167.51:80")}
+                    className="rounded border border-line bg-surface px-2 py-1 font-mono text-2xs text-muted hover:text-ink"
+                  >
+                    Lab Windows
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetUrl("http://127.0.0.1:8000")}
+                    className="rounded border border-line bg-surface px-2 py-1 font-mono text-2xs text-muted hover:text-ink"
+                  >
+                    Localhost
+                  </button>
+                </div>
               </label>
-              <label className="flex flex-col gap-1 text-2xs text-muted">
-                Spawn/s (≤{caps.max_spawn_rate})
-                <input
-                  type="number"
-                  min={1}
-                  max={caps.max_spawn_rate}
-                  value={rate}
-                  onChange={(e) => setRate(Number(e.target.value))}
-                  className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-2xs text-muted">
-                Seconds (≤{caps.max_run_seconds})
-                <input
-                  type="number"
-                  min={1}
-                  max={caps.max_run_seconds}
-                  value={secs}
-                  onChange={(e) => setSecs(Number(e.target.value))}
-                  className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
-                />
-              </label>
-              <Button variant="danger" onClick={run} disabled={busy}>
-                <Icon name="pulse" size={13} />
-                {busy ? "Running…" : "Run load test"}
-              </Button>
+
+              <div className="flex flex-wrap items-end gap-3 mt-1">
+                <label className="flex flex-col gap-1 text-2xs text-muted">
+                  Users (≤{caps.max_users})
+                  <input
+                    type="number"
+                    min={1}
+                    max={caps.max_users}
+                    value={users}
+                    onChange={(e) => setUsers(Number(e.target.value))}
+                    className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-2xs text-muted">
+                  Spawn/s (≤{caps.max_spawn_rate})
+                  <input
+                    type="number"
+                    min={1}
+                    max={caps.max_spawn_rate}
+                    value={rate}
+                    onChange={(e) => setRate(Number(e.target.value))}
+                    className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-2xs text-muted">
+                  Seconds (≤{caps.max_run_seconds})
+                  <input
+                    type="number"
+                    min={1}
+                    max={caps.max_run_seconds}
+                    value={secs}
+                    onChange={(e) => setSecs(Number(e.target.value))}
+                    className="h-8 w-20 rounded border border-line bg-canvas px-2 text-xs text-ink"
+                  />
+                </label>
+                <Button variant="danger" onClick={run} disabled={busy || !targetUrl}>
+                  <Icon name="pulse" size={13} />
+                  {busy ? "Running…" : "Run genuine load test"}
+                </Button>
+              </div>
             </div>
             <p className="text-2xs text-faint">
               Authorized lab targets only. Values are clamped to the configured caps server-side.
@@ -387,8 +420,7 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
           </div>
           <p className="text-2xs text-muted">
             Demonstrates the full execution lifecycle (Safety Gateway · Registry · Kill Switch · audit)
-            with synthetic telemetry. Sends nothing — no target is contacted. Uses the caps above
-            (users ≤{caps.max_users}, spawn ≤{caps.max_spawn_rate}, ≤{caps.max_run_seconds}s), clamped server-side.
+            with synthetic telemetry. Sends nothing — no target is contacted. Clamped to backend caps.
           </p>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={simulate} disabled={busy}>
@@ -401,35 +433,136 @@ function LocustPanel({ status }: { status: IntegrationStatus }) {
             </Button>
           </div>
         </div>
+
         {error && <p className="rounded border border-crit/40 bg-crit/10 px-3 py-2 text-xs text-crit">{error}</p>}
+
         {result && (
-          <div className="flex flex-col gap-2">
-            {result.simulated === true && (
-              <div className="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-center font-mono text-2xs font-semibold uppercase tracking-wide text-amber-500">
+          <div className="flex flex-col gap-3">
+            {result.simulated === true ? (
+              <div className="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-center font-mono text-xs font-semibold uppercase tracking-wide text-amber-500">
                 {String(result.banner ?? "SIMULATION — NO NETWORK TRAFFIC GENERATED")}
                 {result.stopped_early === true ? " · STOPPED" : ""}
               </div>
+            ) : (
+              <div className="rounded border border-ok/50 bg-ok/10 px-3 py-2 text-center font-mono text-xs font-semibold uppercase tracking-wide text-ok">
+                GENUINE LOAD TEST — REAL NETWORK TRAFFIC GENERATED
+                {result.stopped_early === true ? " · STOPPED" : ""}
+              </div>
             )}
+
             {(() => {
-              const t = result.totals as
-                | { requests?: number; failures?: number; rps?: number; error_pct?: number; p95_ms?: number }
-                | undefined;
+              const t = result.totals as Record<string, unknown> | undefined;
+              if (!t) return null;
               const sim = result.simulated === true;
-              return t ? (
-                <div className="grid grid-cols-3 gap-2.5">
-                  <StatTile label={sim ? "Sim requests" : "Requests"} value={Number(t.requests ?? 0)} />
-                  <StatTile label={sim ? "Sim req/s" : "Req/s"} value={Number(t.rps ?? 0)} tone="ok" />
-                  {sim ? (
-                    <StatTile label="Sim p95 ms" value={Number(t.p95_ms ?? 0)} />
-                  ) : (
-                    <StatTile label="Failures" value={Number(t.failures ?? 0)} tone={Number(t.failures ?? 0) ? "crit" : "ink"} />
-                  )}
+              return (
+                <div className="flex flex-col gap-2.5">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label={sim ? "Sim requests" : "Total requests"} value={Number(t.requests ?? 0)} />
+                    <StatTile label="Success" value={Number(t.success ?? (Number(t.requests ?? 0) - Number(t.failures ?? 0)))} tone="ok" />
+                    <StatTile label="Failures" value={Number(t.failures ?? 0)} tone={Number(t.failures ?? 0) > 0 ? "crit" : "ink"} />
+                    <StatTile label="Throughput" value={`${Number(t.rps ?? 0)} req/s`} tone="ok" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatTile label="Avg latency" value={`${Number(t.avg_latency_ms ?? 0)} ms`} />
+                    <StatTile label="Median (p50)" value={`${Number(t.median_latency_ms ?? t.p50_ms ?? 0)} ms`} />
+                    <StatTile label="95th %ile (p95)" value={`${Number(t.p95_latency_ms ?? t.p95_ms ?? 0)} ms`} tone="ink" />
+                    <StatTile label="Error rate" value={`${Number(t.error_pct ?? 0)}%`} tone={Number(t.error_pct ?? 0) > 0 ? "crit" : "ok"} />
+                  </div>
                 </div>
-              ) : null;
+              );
             })()}
-            <pre className="max-h-72 overflow-auto rounded border border-line bg-canvas p-3 font-mono text-2xs text-ink">
-              {JSON.stringify(result, null, 2)}
-            </pre>
+
+            {/* Target Availability & Host Resources (Real Test) */}
+            {result.simulated !== true && Boolean(result.target_availability) && (() => {
+              const avail = result.target_availability as {
+                pre_test?: { available?: boolean; status_code?: number; latency_ms?: number; error?: string };
+                post_test?: { available?: boolean; status_code?: number; latency_ms?: number; error?: string };
+                service_remained_up?: boolean;
+                latency_increase_ms?: number | null;
+              };
+              const hostMetrics = result.target_host_metrics as { cpu?: string; ram?: string } | undefined;
+              return (
+                <div className="rounded border border-line bg-canvas p-3 flex flex-col gap-2.5">
+                  <SectionLabel index="probe" label="Target Availability & Verification" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="rounded border border-line bg-surface p-2">
+                      <span className="text-muted">Pre-test reachability: </span>
+                      <span className={avail.pre_test?.available ? "text-ok" : "text-crit"}>
+                        {avail.pre_test?.available ? `UP (HTTP ${avail.pre_test?.status_code ?? 200}, ${avail.pre_test?.latency_ms ?? 0}ms)` : `DOWN (${avail.pre_test?.error || "Offline"})`}
+                      </span>
+                    </div>
+                    <div className="rounded border border-line bg-surface p-2">
+                      <span className="text-muted">Post-test reachability: </span>
+                      <span className={avail.post_test?.available ? "text-ok" : "text-crit"}>
+                        {avail.post_test?.available ? `UP (HTTP ${avail.post_test?.status_code ?? 200}, ${avail.post_test?.latency_ms ?? 0}ms)` : `DOWN (${avail.post_test?.error || "Offline"})`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted">Service Remained Up:</span>
+                      <Pill tone={avail.service_remained_up ? "ok" : "crit"}>
+                        {avail.service_remained_up ? "YES" : "NO"}
+                      </Pill>
+                      {avail.latency_increase_ms != null && (
+                        <span className="font-mono text-2xs text-muted">
+                          (Δ Latency: {avail.latency_increase_ms > 0 ? `+${avail.latency_increase_ms}` : avail.latency_increase_ms} ms)
+                        </span>
+                      )}
+                    </div>
+                    {hostMetrics && (
+                      <div className="flex items-center gap-2 text-2xs text-faint">
+                        <span>Target Host Resources:</span>
+                        <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-muted">CPU: {String(hostMetrics.cpu)}</span>
+                        <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-muted">RAM: {String(hostMetrics.ram)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Error Breakdown */}
+            {Array.isArray(result.errors) && result.errors.length > 0 && (
+              <div className="rounded border border-crit/30 bg-crit/5 p-3">
+                <div className="text-xs font-semibold text-crit mb-2">HTTP / Connection Errors ({result.errors.length})</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left font-mono text-2xs text-ink">
+                    <thead>
+                      <tr className="border-b border-line text-muted">
+                        <th className="py-1">Endpoint / Name</th>
+                        <th className="py-1">Count</th>
+                        <th className="py-1">Error Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(result.errors as Array<{ name?: string; occurrences?: number; error?: string }>).map((err, idx) => (
+                        <tr key={idx} className="border-b border-line/40">
+                          <td className="py-1 text-ink">{err.name || "—"}</td>
+                          <td className="py-1 text-crit">{err.occurrences ?? 1}</td>
+                          <td className="py-1 text-muted truncate max-w-xs">{err.error || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowRaw(!showRaw)}
+              className="text-left text-2xs font-mono text-muted hover:text-ink underline"
+            >
+              {showRaw ? "Hide raw JSON telemetry" : "Show raw JSON telemetry"}
+            </button>
+            {showRaw && (
+              <pre className="max-h-72 overflow-auto rounded border border-line bg-canvas p-3 font-mono text-2xs text-ink">
+                {JSON.stringify(result, null, 2)}
+              </pre>
+            )}
           </div>
         )}
       </div>
@@ -637,12 +770,15 @@ export function Integrations() {
       {statuses === null ? (
         <Empty>Loading integrations…</Empty>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {byName.caldera && <CalderaPanel status={byName.caldera} />}
-          {byName.locust && <LocustPanel status={byName.locust} />}
-          {byName.hydra && <HydraPanel status={byName.hydra} />}
-          {byName.vervet && <VervetPanel status={byName.vervet} />}
-          {byName.pentestgpt && <GenericPanel status={byName.pentestgpt} />}
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-4 xl:grid-cols-2">
+            {byName.caldera && <CalderaPanel status={byName.caldera} />}
+            {byName.locust && <LocustPanel status={byName.locust} />}
+            {byName.hydra && <HydraPanel status={byName.hydra} />}
+            {byName.vervet && <VervetPanel status={byName.vervet} />}
+            {byName.pentestgpt && <GenericPanel status={byName.pentestgpt} />}
+          </div>
+          <WordlistPanel />
         </div>
       )}
     </div>

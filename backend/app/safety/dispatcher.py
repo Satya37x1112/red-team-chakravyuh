@@ -39,6 +39,7 @@ def _locust_adapter(params: dict) -> dict:
         users=params.get("users"),
         spawn_rate=params.get("spawn_rate"),
         run_seconds=params.get("run_seconds"),
+        target_url=params.get("target"),
     )
 
 
@@ -99,7 +100,10 @@ def run_execution(execution_id: str, *, adapters: dict[str, Adapter] | None = No
 
     token = process.CURRENT_EXECUTION_ID.set(execution_id)
     try:
-        result = adapter(dict(rec.validated_parameters))
+        merged_params = dict(rec.validated_parameters)
+        if rec.target:
+            merged_params.setdefault("target", rec.target)
+        result = adapter(merged_params)
     except subprocess.TimeoutExpired as exc:
         registry.transition(execution_id, ExecState.TIMED_OUT, error="run-time cap exceeded")
         audit.audit(audit.EXECUTION_TIMED_OUT, execution_id=execution_id, module=rec.module,

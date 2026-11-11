@@ -206,6 +206,7 @@ def pentestgpt_ingest(db: Session = Depends(get_db)) -> dict:
 # ---- locust ----------------------------------------------------------------
 
 class LocustRunRequest(BaseModel):
+    target_url: str | None = None
     users: int | None = Field(default=None, ge=1)
     spawn_rate: int | None = Field(default=None, ge=1)
     run_seconds: int | None = Field(default=None, ge=1)
@@ -215,11 +216,12 @@ class LocustRunRequest(BaseModel):
 def locust_run(req: LocustRunRequest, db: Session = Depends(get_db)) -> dict:
     # Section 2: this real-action path now runs THROUGH the Safety Gateway and the
     # execution registry/dispatcher — it can no longer bypass centralized control.
+    effective_target = (req.target_url or settings.locust_target_url or "unconfigured").strip()
     plan = ExecutionPlan(
         scenario_id="integration:locust",
         module=ModuleId.ddos,
         source=PlanSource.manual,
-        requested_target=settings.locust_target_url or "unconfigured",
+        requested_target=effective_target,
         params=ExecutionParams(users=req.users, spawn_rate=req.spawn_rate, run_seconds=req.run_seconds),
     )
     decision = evaluate(plan)

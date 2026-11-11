@@ -54,6 +54,10 @@ def _measured_facts(record: ExecutionRecord, result: dict[str, Any]) -> tuple[li
         if result.get("attempts_made") is not None:
             facts.append(f"{result['attempts_made']} attempt(s) made.")
             evidence["attempts_made"] = result["attempts_made"]
+        if result.get("authenticated") is not None:
+            auth_st = "confirmed" if result.get("authenticated") else "denied"
+            facts.append(f"Live authentication {auth_st} (outcome: {result.get('outcome')}).")
+            evidence["authenticated"] = result.get("authenticated")
         if result.get("message"):
             facts.append(f"Adapter message: {result['message']}")
         if result.get("timed_out"):
@@ -66,12 +70,21 @@ def _measured_facts(record: ExecutionRecord, result: dict[str, Any]) -> tuple[li
                 f"{totals.get('failures')} failures (~{totals.get('rps')}/s)."
             )
             evidence["totals"] = totals
+        if result.get("target_availability"):
+            avail = result["target_availability"]
+            facts.append(f"Target availability: service_remained_up={avail.get('service_remained_up')}.")
+            evidence["target_availability"] = avail
     elif record.module == "rat_related" and isinstance(result, dict):
+        if result.get("transfer_verified") is not None:
+            verified = result.get("transfer_verified")
+            facts.append(f"Remote file transfer: verified={verified} (SHA-256 integrity match).")
+            evidence["transfer_verified"] = verified
         op = result.get("operation")
         st = result.get("status")
-        facts.append(f"Remote-access operation '{op}' → status: {st}.")
-        evidence["operation"] = op
-        evidence["remote_status"] = st
+        if op or st:
+            facts.append(f"Remote-access operation '{op}' → status: {st}.")
+            evidence["operation"] = op
+            evidence["remote_status"] = st
         measured = result.get("measured") or {}
         for k, v in measured.items():
             if v is not None:
@@ -85,12 +98,12 @@ def _objective_met(record: ExecutionRecord, result: dict[str, Any]) -> bool:
     if record.state != ExecState.COMPLETED or not isinstance(result, dict):
         return False
     if record.module == "bruteforce":
-        return bool(result.get("found_count"))
+        return bool(result.get("found_count")) or bool(result.get("authenticated"))
     if record.module == "ddos":
         totals = result.get("totals") or {}
         return bool(totals.get("failures"))  # observed failures = availability impact
     if record.module == "rat_related":
-        return result.get("status") == "success"  # authenticated remote-mgmt confirmed
+        return result.get("status") == "success" or bool(result.get("transfer_verified"))  # auth remote mgmt or file transfer confirmed
     return False
 
 

@@ -122,3 +122,26 @@ def risk_score(anomalies: list[Anomaly]) -> float:
     top = max(a.score for a in anomalies)
     breadth = min(0.3, 0.1 * len(anomalies))
     return round(min(1.0, top + breadth), 2)
+
+
+def score_transfer_event(transfer_event: dict) -> Anomaly | None:
+    """Score a remote file transfer as an observable UBA activity event."""
+    if not transfer_event or not transfer_event.get("filename"):
+        return None
+    fn = transfer_event.get("filename")
+    size_b = int(transfer_event.get("size_bytes") or 0)
+    tgt = transfer_event.get("target") or "target"
+    base_score = 0.50
+    if size_b > 1024 * 1024:  # > 1MB
+        base_score = 0.70
+    if transfer_event.get("integrity_verified"):
+        return Anomaly(
+            category="data_transfer",
+            description=f"Authenticated file transfer verified: '{fn}' ({size_b} B) to {tgt}",
+            score=base_score,
+        )
+    return Anomaly(
+        category="data_transfer",
+        description=f"File transfer integrity mismatch / unverified: '{fn}' ({size_b} B) to {tgt}",
+        score=0.85,
+    )

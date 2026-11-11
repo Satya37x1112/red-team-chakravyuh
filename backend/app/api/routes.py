@@ -73,9 +73,11 @@ def telemetry_probe(req: ProbeRequest) -> dict:
     import subprocess
     from ..telemetry import collector
 
+    from ..safety.killswitch import kill_switch
+
     # Kill switch: no new network-touching activity while the range is halted
     # (consistent with /attacks/soc-activity; fail-closed).
-    if orchestrator.halted:
+    if kill_switch.is_engaged() or orchestrator.halted:
         raise HTTPException(423, "Kill switch is engaged; the range is halted.")
 
     t = collector.probe_on_demand(req.target)
@@ -120,7 +122,9 @@ def attacks_soc_activity(req: SocActivityRequest) -> dict:
     an authorized lab/tailnet target (purple-team). Not a real attack: no flood/DoS,
     bogus credentials only (no lockout), read-only enumeration (no implant). Public
     IPs are refused. The generated network events are what the target's SOC logs."""
-    if orchestrator.halted:
+    from ..safety.killswitch import kill_switch
+
+    if kill_switch.is_engaged() or orchestrator.halted:
         raise HTTPException(423, "Kill switch is engaged; the range is halted.")
     from ..integrations import activity_gen
 
@@ -162,7 +166,12 @@ def get_target(target_id: str, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/attacks/start")
 async def start_attack(req: StartRequest, db: Session = Depends(get_db)) -> dict:
-    if orchestrator.halted:
+    from ..safety.gateway import evaluate
+    from ..safety.killswitch import kill_switch
+    from ..safety.plan_schema import ExecutionPlan, ModuleId, PlanSource
+    from ..safety.registry import registry, ExecState
+
+    if kill_switch.is_engaged() or orchestrator.halted:
         raise HTTPException(423, "Kill switch is engaged. Re-arm the range before starting a session.")
     target = db.get(Target, req.target_id) if req.target_id else db.query(Target).first()
     if target is None:
@@ -171,12 +180,46 @@ async def start_attack(req: StartRequest, db: Session = Depends(get_db)) -> dict
     if target is None:
         raise HTTPException(400, "no target available")
 
+    # Map attack kind to safety module ID
+    kind_to_module = {
+        AttackKind.ddos: ModuleId.ddos,
+        AttackKind.bruteforce: ModuleId.bruteforce,
+        AttackKind.ratuba: ModuleId.rat_related,
+    }
+    mod_id = kind_to_module.get(req.kind, ModuleId.ddos)
+
+    # Route through unified Safety Gateway and Execution Registry
+    plan = ExecutionPlan(
+        scenario_id=f"legacy-{req.kind.value}",
+        module=mod_id,
+        source=PlanSource.manual,
+        simulate=True,
+        requested_target=target.address or "simulation",
+    )
+    decision = evaluate(plan)
+    if decision.rejected:
+        raise HTTPException(423, f"Safety Gateway rejected execution: {decision.reason}")
+
     seq = (db.scalar(select(func.count()).select_from(AttackSession)) or 0) + 1
     sess = AttackSession(label=f"RT-{datetime.now().year}-{seq:04d}", kind=req.kind, target_id=target.id)
     db.add(sess)
     db.commit()
 
-    asyncio.create_task(orchestrator.run(sess.id, req.kind.value))
+    exec_id = decision.execution_id
+    if exec_id:
+        registry.transition(exec_id, ExecState.RUNNING)
+
+    async def _wrapped_orchestrator():
+        try:
+            await orchestrator.run(sess.id, req.kind.value)
+            if exec_id:
+                registry.transition(exec_id, ExecState.COMPLETED)
+        except Exception as exc:
+            if exec_id:
+                registry.transition(exec_id, ExecState.FAILED, error=str(exc))
+            raise
+
+    asyncio.create_task(_wrapped_orchestrator())
     return {"session_id": sess.id, "label": sess.label, "kind": req.kind.value, "state": sess.state.value}
 
 

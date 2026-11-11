@@ -21,7 +21,7 @@ Across Stages 1 through 6, the test suite expanded systematically to cover all a
 | **Stage 4 — Frontend/Backend Integration** | 171 | 171 | 1 | Passed (code 0) | Passed (code 0) | WebSocket telemetry, simulation indicators, UI kill-switch wiring. |
 | **Stage 5 — Network Validation** | 171 | 171 | 1 | Passed (code 0) | Passed (code 0) | Tailscale routing table 52 verified; target reachability confirmed. |
 | **Stage 6 — Full E2E Verification** | 171 | 171 | 1 | Passed (code 0) | Passed (code 0) | Full dataflow traced; hybrid AI & honest fallback validated. |
-| **Stage 7 — Final Regression (Current)** | **171** | **171** | **1** | **Passed (code 0)** | **Passed (code 0)** | **Zero regressions across entire test suite.** |
+| **Stage 7 — Lab Attacks & Core Functions** | **198** | **198** | **1** | **Passed (code 0)** | **Passed (code 0)** | **Real RockYou/Hash auditing, real Locust metrics, authenticated file transfer, 0 regressions.** |
 
 ---
 
@@ -33,24 +33,26 @@ Because system Python was upgraded externally to 3.14 while virtual environment 
 ```bash
 cd /home/kali/AI_red_Team/red-team-chakravyuh/backend
 SP="$PWD/.venv/lib/python3.13/site-packages"
-PYTHONPATH="$SP" /usr/bin/python3.13 -m pytest -v
+PYTHONPATH="$PWD:$SP" /usr/bin/python3.13 -m pytest -v
 ```
 
 ### 2.2 Execution Metrics & Exit Code
 - **Exit Code**: `0`
-- **Total Tests Collected**: `171`
-- **Passed**: `171`
+- **Total Tests Collected**: `198`
+- **Passed**: `198`
 - **Failed**: `0`
 - **Skipped**: `0`
 - **Deselected**: `0`
 - **Warnings**: `1`
-- **Execution Duration**: `11.37s` (verbose) / `26.80s` (full quiet regression run)
+- **Execution Duration**: `6.50s` (quiet) / `14.2s` (verbose)
 
 ### 2.3 Breakdown by Test Module
 
 | Test Module File | Test Count | Status | Key Subsystem Covered |
 |---|---|---|---|
 | `tests/test_ai_safety_integration.py` | 6 | **PASSED (6/6)** | AI plan submission through Safety Gateway, hard limits, allowlist immutability. |
+| `tests/test_auth_module.py` | 12 | **PASSED (12/12)** | RockYou wordlist discovery/streaming, hash algorithms (NTLM, MD5, SHA1/256/512, bcrypt), offline audit, live auth 3-attempt cap, lockout detection. |
+| `tests/test_availability_module.py` | 6 | **PASSED (6/6)** | Target availability pre/post probes, Locust latency percentiles (p50/p95), error parsing, target host resource status ("Unavailable"). |
 | `tests/test_blackbox_telemetry.py` | 23 | **PASSED (23/23)** | IP authorization (RFC1918/tailnet), public IP rejection, port sweeps, budget caps. |
 | `tests/test_concurrency.py` | 3 | **PASSED (3/3)** | Race conditions, thread-safe gateway locking, concurrent execution limits. |
 | `tests/test_execution_flow.py` | 8 | **PASSED (8/8)** | Approved plan dispatching, mock adapter routing, secret masking in results. |
@@ -65,7 +67,8 @@ PYTHONPATH="$SP" /usr/bin/python3.13 -m pytest -v
 | `tests/test_planner.py` | 10 | **PASSED (10/10)** | Target binding to context, malformed JSON recovery, timeout fallback. |
 | `tests/test_recon_killswitch.py` | 5 | **PASSED (5/5)** | Kill-switch blocking on `/telemetry/probe` & `/attacks/soc-activity`, audit logging. |
 | `tests/test_remote_access.py` | 33 | **PASSED (33/33)** | NetExec 5 operations, `/dev/shm` 0600 credentials, password scrubbing, argv safety. |
-| **TOTAL** | **171** | **PASSED (171/171)** | **100% Pass Rate** |
+| `tests/test_transfer_module.py` | 9 | **PASSED (9/9)** | Windows receiver token auth, path traversal sanitization, 10MB limit, SHA-256 pre/post integrity, UBA anomaly logging. |
+| **TOTAL** | **198** | **PASSED (198/198)** | **100% Pass Rate** |
 
 ### 2.4 Warning Analysis
 - **Warning Message**:

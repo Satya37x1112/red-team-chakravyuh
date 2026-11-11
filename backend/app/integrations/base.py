@@ -78,10 +78,18 @@ class Integration(ABC):
         import sys
 
         bindir = os.path.dirname(sys.executable)
-        for cand in (binary, f"{binary}.exe", f"{binary}.cmd", f"{binary}.bat"):
-            candidate = os.path.join(bindir, cand)
-            if os.path.isfile(candidate):
-                return candidate
+        search_dirs = [
+            bindir,
+            os.path.expanduser("~/.local/chakra-bin"),
+            os.path.expanduser("~/.local/bin"),
+            os.path.abspath("backend/.venv/bin"),
+            os.path.abspath(".venv/bin"),
+        ]
+        for sdir in search_dirs:
+            for cand in (binary, f"{binary}.exe", f"{binary}.cmd", f"{binary}.bat"):
+                candidate = os.path.join(sdir, cand)
+                if os.path.isfile(candidate):
+                    return candidate
         return None
 
     @staticmethod

@@ -107,11 +107,15 @@ def _evaluate_simulation(plan: ExecutionPlan, policy_id: str, *, dry_run: bool) 
     # A. kill switch still blocks new work (even simulated).
     if kill_switch.is_engaged():
         return _reject(plan, "Kill switch is engaged; the range is halted.")
-    # Simulation is defined for the ddos module only.
-    if plan.module is not ModuleId.ddos:
-        return _reject(plan, f"Simulation mode is only defined for 'ddos' (got '{plan.module.value}').")
 
-    # F. clamp the requested knobs DOWN to the ddos caps (users/spawn/duration).
+    sim_adapters = {
+        ModuleId.ddos: "locust_sim",
+        ModuleId.bruteforce: "bruteforce_sim",
+        ModuleId.rat_related: "ratuba_sim",
+    }
+    sim_adapter = sim_adapters.get(plan.module, "generic_sim")
+
+    # F. clamp the requested knobs DOWN to the module caps.
     validated = policy.clamp_params(plan.module, plan.params, plan.requested_duration_seconds)
     validated["simulated"] = True
 
@@ -121,7 +125,7 @@ def _evaluate_simulation(plan: ExecutionPlan, policy_id: str, *, dry_run: bool) 
         return GatewayDecision(
             approved=True, reason="Simulation would be approved (dry run).", policy_id=policy_id,
             timestamp=_now_iso(), module=plan.module.value, target=plan.requested_target,
-            execution_id=None, adapter="locust_sim", validated_parameters=validated,
+            execution_id=None, adapter=sim_adapter, validated_parameters=validated,
         )
 
     with _APPROVAL_LOCK:
@@ -130,7 +134,7 @@ def _evaluate_simulation(plan: ExecutionPlan, policy_id: str, *, dry_run: bool) 
         rec = ExecutionRecord(
             scenario_id=plan.scenario_id,
             module=plan.module.value,
-            adapter="locust_sim",
+            adapter=sim_adapter,
             target=plan.requested_target,
             source=plan.source.value,
             validated_parameters=validated,

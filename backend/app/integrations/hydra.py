@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tempfile
 import time
 from typing import Any
 
@@ -259,4 +260,167 @@ class HydraIntegration(Integration):
             "duration_seconds": duration,
             "attempt_feed": attempts[-60:],   # last N masked guesses for the live feed
             "stderr_tail": "\n".join(stderr.splitlines()[-20:]) if stderr else "",
+        }
+
+    def validate_live_auth(
+        self,
+        *,
+        target: str,
+        service: str = "smb",
+        account: str = "labuser",
+        passwords: list[str] | None = None,
+        port: int | None = None,
+        max_attempts: int = 3,
+        run_seconds: int | None = None,
+    ) -> dict[str, Any]:
+        """Bounded live authentication validation against a designated lab account.
+
+        Hard security bounds:
+          - Target must be explicitly authorized.
+          - Non-administrator test account only.
+          - Maximum of 3 authentication attempts per run (hard cap).
+          - Stops immediately on successful auth, lockout warning, or cancellation.
+          - Credentials are never exposed in return values, telemetry, or logs.
+        """
+        bin_path = self._which(settings.hydra_bin)
+        if bin_path is None:
+            raise RuntimeError("Hydra binary not found on host.")
+
+        # Hard cap attempts at 3 (defence-in-depth)
+        attempt_cap = max(1, min(max_attempts, 3))
+        secs = max(1, min(run_seconds or 30, 60))
+
+        # Select candidate passwords up to the strict limit
+        candidates = [p for p in (passwords or ["Welcome1", "Summer2026!", "LabPass2026!"]) if p]
+        candidates = candidates[:attempt_cap]
+        if not candidates:
+            candidates = ["labpassword"]
+
+        # Write candidate passwords to a secure, mode 0600 temp file
+        temp_dir = "/dev/shm" if os.path.isdir("/dev/shm") and os.access("/dev/shm", os.W_OK) else tempfile.gettempdir()
+        fd, pass_file = tempfile.mkstemp(prefix="hydra_live_", dir=temp_dir)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as pf:
+                for p in candidates:
+                    pf.write(f"{p}\n")
+            try:
+                os.chmod(pass_file, 0o600)
+            except OSError:
+                pass
+
+            cmd = [
+                bin_path,
+                "-l", account,
+                "-P", pass_file,
+                "-t", "1",       # serial connects only; no parallel hammering
+                "-f",            # stop immediately on first valid pair
+                "-V",            # verbose output to count attempts
+                "-w", "4",       # wait up to 4s for response
+            ]
+            if port:
+                cmd += ["-s", str(port)]
+            cmd += [target, service]
+
+            started = time.monotonic()
+            timed_out = False
+            stdout = ""
+            stderr = ""
+            returncode: int | None = None
+
+            try:
+                proc = self._run(cmd, timeout=secs + 5)
+                stdout, stderr, returncode = proc.stdout, proc.stderr, proc.returncode
+            except subprocess.TimeoutExpired as exc:
+                timed_out = True
+                stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+                stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+
+            duration = round(time.monotonic() - started, 2)
+        finally:
+            # Secure cleanup
+            if os.path.exists(pass_file):
+                try:
+                    os.remove(pass_file)
+                except OSError:
+                    pass
+
+        combined = stdout + "\n" + stderr
+        found = False
+        attempts_seen = 0
+        lockout_detected = False
+        unreachable = False
+        notes: list[str] = []
+
+        lockout_patterns = [
+            "account_locked_out", "account locked", "locked out", "lockout",
+            "status_account_locked_out", "password must change", "logon failure: account locked"
+        ]
+        unreachable_patterns = [
+            "could not connect", "connection refused", "route to host", "timeout", "timed out"
+        ]
+
+        for raw_line in combined.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            line_lower = line.lower()
+
+            if _HIT.match(line):
+                found = True
+                continue
+            if "[ATTEMPT]" in line:
+                attempts_seen += 1
+                continue
+            if any(p in line_lower for p in lockout_patterns):
+                lockout_detected = True
+                notes.append("Target reported account lockout protection warning.")
+            elif any(p in line_lower for p in unreachable_patterns):
+                unreachable = True
+                notes.append(line)
+            elif any(k in line for k in ("[ERROR]", "[WARNING]")):
+                notes.append(line)
+
+        # Cap attempt count to the strict candidate limit
+        effective_attempts = min(attempts_seen or (1 if not unreachable else 0), attempt_cap)
+
+        if found:
+            outcome = "AUTHENTICATION_CONFIRMED"
+            stop_reason = "SUCCESS_STOP"
+            msg = f"Target confirmed successful authentication for account {account[:2]}***."
+        elif lockout_detected:
+            outcome = "LOCKOUT_HALT"
+            stop_reason = "LOCKOUT_WARNING_HALT"
+            msg = "Testing halted immediately: target indicated account lockout warning."
+        elif unreachable:
+            outcome = "TARGET_UNREACHABLE"
+            stop_reason = "CONNECTION_FAILED"
+            msg = f"Could not reach {service}://{target} (connection failed/refused)."
+        elif timed_out:
+            outcome = "TIMED_OUT"
+            stop_reason = "TIMEOUT_EXPIRED"
+            msg = f"Live authentication timed out after {secs}s cap."
+        else:
+            outcome = "AUTHENTICATION_REJECTED"
+            stop_reason = "ATTEMPT_CAP_REACHED"
+            msg = f"Authentication rejected by target across {effective_attempts} attempt(s) within safety limit."
+
+        # Mask account identifier
+        masked_acc = f"{account[:2]}{'*' * max(len(account) - 3, 2)}{account[-1:]}" if len(account) > 3 else "lab***"
+
+        return {
+            "target": target,
+            "protocol": service,
+            "service": service,
+            "port": port,
+            "account_masked": masked_acc,
+            "attempt_count": effective_attempts,
+            "max_attempts_cap": attempt_cap,
+            "authenticated": found,
+            "outcome": outcome,
+            "stop_reason": stop_reason,
+            "duration_seconds": duration,
+            "message": msg,
+            "notes": notes[-5:],
+            "exit_code": returncode,
+            "timed_out": timed_out,
         }

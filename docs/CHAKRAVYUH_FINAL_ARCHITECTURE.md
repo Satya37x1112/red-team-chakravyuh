@@ -158,7 +158,9 @@ The architecture is explicitly designed to remain fully functional, secure, and 
 ### 5.1 Presentation Layer (React 18 + TypeScript + Vite)
 - **`src/pages/AIPlanner.tsx`**: Operator interface for submitting objectives, previewing dry-run gateway verdicts, and tracking iterative feedback loops.
 - **`src/pages/TargetRecon.tsx`**: Blackbox reconnaissance interface; executes non-destructive TCP probes against authorized lab/tailnet IPs and displays open ports and SOC proof notes.
-- **`src/pages/Integrations.tsx`**: Tool management console showing armed/disarmed status, server caps, and dedicated DDoS Simulation controls with prominent warning banners.
+- **`src/pages/Integrations.tsx`**: Tool management console showing armed/disarmed status, server caps, granular Locust load test metrics (p50/p95 latency, availability probe, host metrics, error breakdown), and dedicated DDoS Simulation controls with prominent warning banners.
+- **`src/components/WordlistPanel.tsx`**: Dedicated password auditing console with RockYou wordlist metadata inspector, multi-format offline hash auditing (NTLM, MD5, SHA-1, SHA-256, SHA-512, bcrypt), and bounded live auth testing (max 3 attempts).
+- **`src/pages/RemoteAccess.tsx`**: Credentialed remote management and authenticated file transfer interface; verifies Windows receiver connectivity, SHA-256 pre/post integrity badges, and UBA anomaly reporting.
 - **`src/components/QuickAttack.tsx`**: Dashboard one-click SOC detection-signature launcher enforcing mandatory target IP input and kill-switch lockout.
 - **`src/useLive.ts`**: Resilient WebSocket client that receives real-time telemetry updates and event broadcasts, with exponential backoff auto-reconnect.
 
@@ -166,23 +168,30 @@ The architecture is explicitly designed to remain fully functional, secure, and 
 - **`app/main.py`**: Application entry point, CORS middleware, database lifespan management, and `/ws` WebSocket endpoint.
 - **`app/api/operations.py`**: AI operations interface (`/plan` dry-run preview, `/` iterative execution loop, `/{id}` detail history).
 - **`app/api/execution.py`**: Direct execution submission front door (`/submit`, `/{id}`, `/{id}/cancel`, `/killswitch`).
-- **`app/api/integrations.py`**: Tool-specific execution routes for Hydra, Locust, Locust Simulation, and Remote Access.
-- **`app/api/routes.py`**: Recon probe (`/telemetry/probe`), purple-team SOC signatures (`/attacks/soc-activity`), and kill switch (`/killswitch`, `/killswitch/reset`).
+- **`app/api/auth.py`**: Authentication testing routes: `GET /api/auth/rockyou/status`, `POST /api/auth/identify-hash`, `POST /api/auth/offline-audit`, `POST /api/auth/live-validate`.
+- **`app/api/transfer.py`**: Remote data transfer routes: `POST /api/transfer/receiver/check`, `GET /api/transfer/files`, `POST /api/transfer/send`.
+- **`app/api/integrations.py`**: Tool-specific execution routes for Hydra, Locust (with dynamic target URLs), Locust Simulation, and Remote Access.
+- **`app/api/routes.py`**: Legacy attack runner wrapped through `ExecutionPlan` -> `SafetyGateway` -> `ExecutionRegistry` (`/attacks/start`), recon probe (`/telemetry/probe`), purple-team SOC signatures (`/attacks/soc-activity`), and kill switch (`/killswitch`, `/killswitch/reset`).
 - **`app/api/llm.py`**: In-memory generic LLM provider configuration and sanitized connection testing.
 
 ### 5.3 Safety & Execution Core
-- **`app/safety/gateway.py`**: Central deterministic authorization gateway implementing fail-closed checks and dry-run evaluation.
+- **`app/safety/gateway.py`**: Central deterministic authorization gateway implementing fail-closed checks, multi-category simulation plans, parameter clamping, and dry-run evaluation.
 - **`app/safety/policy.py`**: Static rule definitions, hard caps, module enablement status, and target/operation allowlists.
 - **`app/safety/plan_schema.py`**: Pydantic v2 schemas defining `ExecutionPlan`, `ExecutionParams`, and strict input bounds.
 - **`app/safety/registry.py`**: Thread-safe in-memory lifecycle state machine managing execution records and concurrency bounds.
-- **`app/safety/dispatcher.py`**: Invocation coordinator linking approved records to adapters; manages cancellation and timeouts.
+- **`app/safety/dispatcher.py`**: Invocation coordinator linking approved records to adapters; manages cancellation, timeouts, and target URLs.
 - **`app/safety/process.py`**: Process management engine executing CLI tools in isolated process groups and registering PIDs.
 - **`app/safety/killswitch.py`**: Central halt authority dispatching process termination signals and enforcing admin-token re-arming.
 - **`app/safety/audit.py`**: Central audit recording with recursive masking of passwords, keys, and tokens.
 
-### 5.4 Adapters & Telemetry Engines
-- **`app/integrations/hydra.py`**: THC-Hydra CLI wrapper enforcing task and run-time limits; parses login attempts.
-- **`app/integrations/locust.py`**: Real Locust load driver executing operator locustfiles against authorized targets.
+### 5.4 Adapters, Services & Telemetry Engines
+- **`app/services/wordlist.py`**: RockYou wordlist discovery service; supports `.gz` streaming and plain `.txt`, calculates entry metadata, masks secrets, and ensures integrity.
+- **`app/services/hash_audit.py`**: Offline password hash auditing service; identifies hash algorithms (NTLM, MD5, SHA-1, SHA-256, SHA-512, bcrypt) and performs bounded dictionary comparison against RockYou.
+- **`app/services/availability.py`**: Target availability probe service; pre/post HTTP latency measurement, Locust response-time histogram percentile calculations (p50/p95), and text error parsing.
+- **`app/services/transfer.py`**: Authenticated remote file transfer client; pre-transfer SHA-256 hashing, HTTP transfer with `X-Chakravyuh-Auth`, post-receipt SHA-256 comparison, and UBA event scoring.
+- **`tools/windows_receiver.py`**: Visible, operator-controlled Python HTTP receiver for the Windows lab target (port 8090); token authentication, path traversal sanitization, 10MB size cap, post-receipt SHA-256 hashing.
+- **`app/integrations/hydra.py`**: THC-Hydra CLI wrapper and live auth validation engine; enforces 3-attempt limits, detects lockout signatures, and parses login attempts.
+- **`app/integrations/locust.py`**: Real Locust load driver executing operator locustfiles against authorized targets with genuine percentile and availability metrics.
 - **`app/integrations/locust_sim.py`**: Zero-traffic DDoS simulator generating synthetic load curves through the full gateway/registry lifecycle.
 - **`app/integrations/remote_access.py`**: NetExec remote administration wrapper supporting 5 read-only operations via temporary `/dev/shm` credentials.
 - **`app/telemetry/collector.py`**: Non-destructive blackbox TCP-connect probe and host telemetry collectors.

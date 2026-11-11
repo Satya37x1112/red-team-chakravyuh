@@ -6,12 +6,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api.auth import router as auth_router
 from .api.central import router as central_router
 from .api.execution import router as execution_router
 from .api.integrations import router as integrations_router
 from .api.llm import router as llm_router
 from .api.operations import router as operations_router
 from .api.routes import router
+from .api.transfer import router as transfer_router
 from .config import settings
 from .db import init_db
 from .telemetry.service import service
@@ -38,6 +40,8 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(auth_router)
+app.include_router(transfer_router)
 app.include_router(integrations_router)
 app.include_router(central_router)
 app.include_router(execution_router)
