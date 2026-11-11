@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api.assessment import router as assessment_router
 from .api.auth import router as auth_router
 from .api.central import router as central_router
 from .api.execution import router as execution_router
@@ -40,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(assessment_router)
 app.include_router(auth_router)
 app.include_router(transfer_router)
 app.include_router(integrations_router)

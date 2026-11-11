@@ -154,6 +154,27 @@ Follow the procedures in `docs/CHAKRAVYUH_FINAL_DEPLOYMENT_GUIDE.md`:
    - Console displays **SHA-256 Integrity Verified** match badge.
    - Platform routes transfer event into the UBA engine and displays anomaly scoring.
 
+### Part K: One-Click Orchestrated Assessment & Target VM Open Ports (3 Mins)
+1. Navigate to the **Main Operations Overview (Dashboard)** (`/`).
+2. Locate the **One-Click Orchestrated Assessment** console.
+3. **Target IP & Hash Input**:
+   - The target IP defaults to the authorized lab Windows host (`100.80.167.51`).
+   - (Optional) Click "Sample Hash" to populate the MD5 hash of `'password'` (`5f4dcc3b5aa765d61d8327deb882cf99`).
+4. **Click "RUN ASSESSMENT"**:
+   - In a single click, the platform runs the sequence:
+     1. Target validation (RFC1918 / Tailnet peer check; rejects public IPs fail-closed).
+     2. Target reachability check (TCP connect / Tailscale ping; stops early if target is offline to avoid fabricating results).
+     3. Non-destructive port recon (discovers open ports e.g. 80 HTTP, 445 SMB, 3389 RDP).
+     4. DDoS SOC detection signature (bounded 40 connects, max 8s).
+     5. Brute Force SOC signature (emits 5 bogus logons; automatically skips if port 445 is closed).
+     6. RAT SOC signature (read-only SMB enumeration; automatically skips if port 445 is closed).
+     7. Offline RockYou hash audit (recovers plaintext password locally without touching target).
+     8. Live tools notices (honestly marks real Locust and Remote File Transfer as "Requires Setup").
+5. **View Results**:
+   - **Target VM Open Ports & Services**: Shows green badges for every detected open port, service protocol, and response latency.
+   - **Execution Checklist**: Renders live per-step statuses (`DONE`, `SKIPPED`, `UNAVAILABLE`, `BLOCKED`, `STOPPED`) with execution timing and verifiable audit trail records.
+   - **Kill Switch Integration**: Pressing `Win + Alt + K` or clicking Stop mid-sequence immediately halts all remaining steps.
+
 ---
 
 ## 4. Addressing Reviewer Inquiries

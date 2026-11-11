@@ -120,6 +120,12 @@ export const api = {
   transferSend: (body: { file_path: string; target_url: string; auth_token: string; destination_filename?: string }) =>
     post("/api/transfer/send", body).then(json<Record<string, unknown>>),
 
+  // One-Click Orchestrated Assessment
+  assessmentRun: (body: { target: string; password_hash?: string }) =>
+    post("/api/assessment/run", body).then(json<Record<string, unknown>>),
+  assessmentLatest: () =>
+    fetch("/api/assessment/latest").then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown> | null>) : null)),
+
   central: () => fetch("/api/central/summary").then(json<CentralSummary>),
   report: () => fetch("/api/central/report").then(json<PentestReport>),
   analysis: () => fetch("/api/central/analysis").then(json<SmartAnalysis>),
