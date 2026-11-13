@@ -131,7 +131,7 @@ def test_connection() -> dict:
     if not valid:
         return result
 
-    text, model, errors = complete(_PROBE_SYSTEM, _PROBE_USER, max_tokens=30, temperature=0.0)
+    text, model, errors = complete(_PROBE_SYSTEM, _PROBE_USER, max_tokens=256, temperature=0.0)
     result["errors"] = errors[:3]
     if text is not None:
         result.update(gateway_reachable=True, auth_ok=True, inference_ok=True,
