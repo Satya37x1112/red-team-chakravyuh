@@ -1,4 +1,4 @@
-# VAJRAPRAHAAR — AI Red Team Cyber Range Console
+# AI RED TEAM — AI Red Team Cyber Range Console
 
 Academic project. An AI agent reads **real telemetry** from an isolated Windows
 target VM, reasons over it with an LLM, and a dashboard shows three clearly
