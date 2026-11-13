@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../api";
 import { Gauge } from "../components/charts";
 import { EventStream } from "../components/EventStream";
 import { HistoryFilter, HistoryTable } from "../components/HistoryTable";
@@ -36,6 +37,24 @@ export function downloadReport(telemetry: Telemetry | null, sessions: AnalyticsR
 export function Dashboard() {
   const { telemetry, analytics, events, connected } = useLiveContext();
   const [filter, setFilter] = useState<"all" | Kind>("all");
+  // Victim = the lab VM under assessment (NOT this Kali host, which is the attacker).
+  const [victim, setVictim] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    api
+      .networkTargets()
+      .then((list) => {
+        if (!active) return;
+        const sel = list.find((h) => h.selected) ?? list.find((h) => h.authorization_status === "authorized");
+        if (sel) setVictim(sel.hostname ? `${sel.ip} · ${sel.hostname}` : sel.ip);
+      })
+      .catch(() => {
+        /* keep fallback */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const count = (s: string) => analytics.filter((r) => r.state === s).length;
   const done = count("RESULT");
@@ -53,9 +72,9 @@ export function Dashboard() {
     : null;
 
   const context: [string, string | null | undefined][] = [
-    ["Target", telemetry?.hostname],
-    ["Operating system", telemetry?.os_name],
-    ["Operator", telemetry?.logged_in_user],
+    ["Attacker (this host)", telemetry?.hostname],
+    ["Attacker OS", telemetry?.os_name],
+    ["Target (victim VM)", victim ?? "100.80.167.51 · Windows"],
     ["Collector", telemetry?.source],
     ["Uptime", uptime(telemetry?.uptime_seconds)],
   ];
