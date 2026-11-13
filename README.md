@@ -25,22 +25,91 @@ The AI proposes, the backend validates and authorizes, the operator approves whe
 ## Architecture
 
 ```mermaid
-flowchart TD
-  UI[React Dashboard] -->|HTTP /api, WS /ws| API[FastAPI routers]
-  API --> PL[AI Planner]
-  PL --> EP[ExecutionPlan - Pydantic]
-  EP --> GW[Safety Gateway: evaluate]
-  GW -->|reject, fail-closed| UI
-  GW --> POL[Policy: target allowlist + caps]
-  POL --> REG[Execution Registry: unique execution_id]
-  REG --> DIS[Dispatcher]
-  DIS --> AD[Adapter: Hydra / Locust / NetExec]
-  AD --> TEL[Telemetry + Analysis]
-  TEL --> AUD[(SQLite Audit)]
-  AUD --> UI
-  KS{{Kill Switch}} -. blocks new work .-> GW
+flowchart TB
+  Operator([👤 Operator])
+
+  subgraph FE["🖥️  Frontend — React · TypeScript · Vite (:5173)"]
+    direction LR
+    DASH[Dashboard]
+    DISCO[Network Discovery]
+    RECON[Target Recon]
+    PLANUI[AI Planner]
+    INTEG[Integrations]
+    SETT[Settings]
+    APIC[[api.ts client · /api · WS /ws]]
+  end
+
+  subgraph API["⚙️  FastAPI Backend (:8077)"]
+    direction LR
+    RNET[network router]
+    RTEL[telemetry router]
+    ROPS[operations router]
+    REXE[execution router]
+    RINT[integrations router]
+    RAUTH[auth · transfer router]
+    RSAFE[killswitch · llm router]
+  end
+
+  subgraph AIL["🧠  Intelligence Layer — proposes only"]
+    direction LR
+    CTX[Context Manager]
+    PLANNER[Central AI Planner]
+    LLMC[Centralized LLM Client]
+  end
+
+  subgraph SPINE["🛡️  Deterministic Safety Spine — authoritative"]
+    direction TB
+    EP[ExecutionPlan · Pydantic<br/>no cap field]
+    GW{{Safety Gateway · evaluate<br/>fail-closed}}
+    POL[Policy · target allowlist + caps]
+    REG[(Execution Registry<br/>unique execution_id)]
+    DIS[Dispatcher]
+    KS[[🔴 Kill Switch]]
+    AUD[(🗄️ SQLite Audit · masked)]
+  end
+
+  subgraph ADP["🔧  Bounded Adapters"]
+    direction LR
+    HY[Hydra · auth test]
+    LO[Locust · capped load]
+    LS[Locust Sim · no traffic]
+    NX[NetExec · read-only x5]
+    PRB[Recon TCP probe]
+  end
+
+  subgraph EXT["🌐  External — Authorized Lab"]
+    direction LR
+    TS{{Tailscale tailnet}}
+    WIN[Windows target<br/>opensoc-windows]
+    LLM[[OpenRouter / OmniRoute]]
+  end
+
+  Operator ==> FE
+  FE -->|HTTP /api · WS /ws| API
+  API --> CTX --> PLANNER
+  PLANNER --> LLMC --> LLM
+  PLANNER --> EP --> GW
+  GW -->|reject| API
+  GW --> POL --> REG --> DIS --> ADP
+  KS -. blocks new work .-> GW
   KS -. blocks .-> API
+  ADP --> TS --> WIN
+  PRB --> TS
+  GW --> AUD
+  DIS --> AUD
+  ADP -->|telemetry| RTEL
+  AUD -->|events| API
+  API -->|results · WebSocket| FE
+
+  classDef safe fill:#1f2937,stroke:#ef4444,stroke-width:2px,color:#fff;
+  classDef ai fill:#1e293b,stroke:#38bdf8,color:#fff;
+  classDef ext fill:#111827,stroke:#f59e0b,color:#fff;
+  class EP,GW,POL,REG,DIS,KS,AUD safe;
+  class CTX,PLANNER,LLMC ai;
+  class TS,WIN,LLM ext;
 ```
+
+**Reading the diagram:** the **Intelligence Layer** (blue) only *proposes* a structured plan. The **Safety Spine** (red) is the authoritative, AI-independent chokepoint — a plan becomes an approved, registered execution only after `Safety Gateway → Policy → Registry`, and the **Kill Switch** can block the whole thing at the gateway or API edge. Only the **Dispatcher** reaches an **Adapter**, and only adapters touch the **External lab** (amber) over Tailscale. Everything is written to the **Audit** store.
 
 **Execution lifecycle (gated path):** `Dashboard → FastAPI → AI Planner → ExecutionPlan → Safety Gateway → Execution Registry → Dispatcher → Adapter → Telemetry → Audit → Dashboard.`
 
