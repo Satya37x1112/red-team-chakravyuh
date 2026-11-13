@@ -1,7 +1,7 @@
 # CYBER CHAKRAVYUH — Final Engineering & Project Report
 
 **Document Type:** Final Capstone Engineering & Architecture Report  
-**Project Name:** CYBER CHAKRAVYUH (formerly VAJRAPRAHAAR)  
+**Project Name:** CYBER CHAKRAVYUH (formerly AI RED TEAM)  
 **Date:** 2026-11-10  
 **Host Platform:** Kali Linux (VMware Guest, x86_64)  
 **Repository Path:** `/home/kali/AI_red_Team/red-team-chakravyuh`  
