@@ -81,7 +81,7 @@ export function Layout({ toasts }: { toasts: Toast[] }) {
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-surface lg:flex">
         <div className="flex h-[52px] items-center gap-2.5 border-b border-line px-4">
           <Logo />
-          <span className="text-[14px] font-semibold tracking-tight text-ink">vajraprahaar</span>
+          <span className="text-[14px] font-semibold tracking-tight text-ink">AI Red Team</span>
           <span className="ml-auto rounded border border-line px-1.5 font-mono text-2xs text-muted">range</span>
         </div>
         <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
