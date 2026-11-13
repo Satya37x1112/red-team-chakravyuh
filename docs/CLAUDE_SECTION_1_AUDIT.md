@@ -12,7 +12,7 @@
 
 ## 1. Executive Summary
 
-CHAKRAVYUH (previously **VAJRAPRAHAAR** — the name is still in the code, e.g. `backend/app/main.py:28`) is a FastAPI + React cyber-range console with a genuinely well-engineered, **honest, fail-closed** foundation. The code never fabricates telemetry or outcomes, degrades gracefully when a tool/key is missing, and masks secrets (e.g. Hydra never returns a cracked password). That discipline is the project's biggest asset and matches your "real data, labelled evidence" requirement closely.
+CHAKRAVYUH (previously **AI RED TEAM** — the name is still in the code, e.g. `backend/app/main.py:28`) is a FastAPI + React cyber-range console with a genuinely well-engineered, **honest, fail-closed** foundation. The code never fabricates telemetry or outcomes, degrades gracefully when a tool/key is missing, and masks secrets (e.g. Hydra never returns a cracked password). That discipline is the project's biggest asset and matches your "real data, labelled evidence" requirement closely.
 
 **However, the single most important thing to understand is that the repository today is actually _two disconnected systems_:**
 
@@ -102,7 +102,7 @@ There is **no component** that connects Path A's AI decision to Path B's real ex
 
 | Component | File | Status | Notes |
 |---|---|---|---|
-| FastAPI app / lifespan | `app/main.py` | **IMPLEMENTED AND VERIFIED** | App boots; `/api/health` returned `{"status":"ok"}` when run this session `[FACT]`. Title still "VAJRAPRAHAAR" (`main.py:28`). CORS locked to `localhost:5173` (`main.py:32`). |
+| FastAPI app / lifespan | `app/main.py` | **IMPLEMENTED AND VERIFIED** | App boots; `/api/health` returned `{"status":"ok"}` when run this session `[FACT]`. Title still "AI RED TEAM" (`main.py:28`). CORS locked to `localhost:5173` (`main.py:32`). |
 | REST routes | `app/api/routes.py` | **IMPLEMENTED BUT UNVERIFIED** | Sessions, telemetry, decision, kill switch, analytics endpoints present. Logic read, not exercised. |
 | Integrations API | `app/api/integrations.py` | **IMPLEMENTED BUT UNVERIFIED** | Clean REST surface; real-action endpoints gated behind `preconditions()` returning HTTP 423. |
 | Central/Operations API | `app/api/central.py` | **IMPLEMENTED BUT UNVERIFIED** | Aggregates artifacts into a pentest report + port-intel analysis (`central.py:230` `_PORT_INTEL`). Read-only. |
@@ -256,7 +256,7 @@ File: `app/telemetry/collector.py` (326 lines), schema `telemetry/schema.py`.
 3. **Docker artifacts present** but directive forbids Docker — recommend removing/ignoring `docker-compose*.yml` and the `Dockerfile`s in a later cleanup section (not now). `[FACT]`
 4. **`db.py`/`config.py` comments reference "PostgreSQL in Docker"** (`db.py:18`) — cosmetic contradiction with the Kali-native, SQLite-default reality. `[FACT]`
 5. **`psycopg2-binary` pinned** in `requirements.txt` though SQLite is the default — harmless, installs fine on Kali. `[FACT]`
-6. **Branding drift:** app title, prompts, and `X-Title` headers still say "VAJRAPRAHAAR" (`main.py:28`, `decision.py:67/139`). Rename is a later, low-risk task. `[FACT]`
+6. **Branding drift:** app title, prompts, and `X-Title` headers still say "AI RED TEAM" (`main.py:28`, `decision.py:67/139`). Rename is a later, low-risk task. `[FACT]`
 7. **No Alembic migrations** — `create_all` only (`db.py:38`); fine for the lab, noted for completeness.
 
 ---
@@ -293,7 +293,7 @@ File: `app/telemetry/collector.py` (326 lines), schema `telemetry/schema.py`.
 - Two parallel execution paths (simulation vs. integrations) with overlapping concepts (both "attack") but no shared contract — will cause confusion and duplicated logic.
 - `adapt()` (`base.py:137`) masquerades as a "feedback loop" but is a fixed heuristic nudge — misleading relative to the vision.
 - `Target.authorized` column exists but is dead (never enforced).
-- Branding/name drift (VAJRAPRAHAAR vs CHAKRAVYUH).
+- Branding/name drift (AI RED TEAM vs CHAKRAVYUH).
 - Docker/Postgres references contradicting the Kali-native directive.
 - No schema/validation layer between AI output and anything downstream.
 
@@ -354,7 +354,7 @@ Design rules to honour your constraints: Safety Gateway is **pure Python, determ
 - **Section 4:** Real **Module-3 remote-access** adapter (NetExec/Evil-WinRM credentialed admin), fail-closed like Hydra, behind the gateway + a UI panel.
 - **Section 5:** Observation Engine + Result Analyzer + the real AI **feedback loop** (continue/modify/stop).
 - **Section 6:** Unified audit record + objective-input UI + Operations Center linkage.
-- **Section 7 (cleanup):** rename VAJRAPRAHAAR→CHAKRAVYUH, remove Docker/Postgres artifacts, add backend tests.
+- **Section 7 (cleanup):** rename AI RED TEAM→CHAKRAVYUH, remove Docker/Postgres artifacts, add backend tests.
 
 *(You decide the order; this is my recommendation, not a commitment to proceed.)*
 
