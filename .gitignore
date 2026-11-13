@@ -19,3 +19,8 @@ frontend/dist/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# SQLite runtime sidecar files
+*.db-journal
+*.db-wal
+*.db-shm
