@@ -1,4 +1,4 @@
-# VAJRAPRAHAAR — Windows VM Setup Guide
+# AI RED TEAM — Windows VM Setup Guide
 
 Fresh Windows VM pe is repo ko zero se chalane ke liye step-by-step guide.
 Ye ek **isolated lab console** hai (host-only network ke liye) — ise kabhi
