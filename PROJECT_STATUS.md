@@ -1,4 +1,4 @@
-# VAJRAPRAHAAR — Project Status / Update
+# AI RED TEAM — Project Status / Update
 
 **As of:** 2026-11-07 · AI Red Team Cyber Range Console (academic project)
 
