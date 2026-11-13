@@ -88,7 +88,7 @@ Your rules were: **only the target Windows VM's IP; no authorization to install 
 - [ ] WebSocket live streaming of AI iterations into the AI Planner page.
 - [ ] Frontend automated tests.
 - [ ] Persistent Node on PATH + a service/startup setup for Kali.
-- [ ] Rename branding VAJRAPRAHAAR → CHAKRAVYUH (cosmetic).
+- [ ] Rename branding AI RED TEAM → CHAKRAVYUH (cosmetic).
 - [ ] Remove leftover Docker artifacts (contradict the no-Docker rule; cosmetic).
 - [ ] Final end-to-end verification (credited key + armed lab + authorized target).
 
