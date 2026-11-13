@@ -26,9 +26,9 @@ The AI proposes, the backend validates and authorizes, the operator approves whe
 
 ```mermaid
 flowchart TB
-  Operator([👤 Operator])
+  Operator([Operator])
 
-  subgraph FE["🖥️  Frontend — React · TypeScript · Vite (:5173)"]
+  subgraph FE["Frontend — React · TypeScript · Vite (:5173)"]
     direction LR
     DASH[Dashboard]
     DISCO[Network Discovery]
@@ -39,7 +39,7 @@ flowchart TB
     APIC[[api.ts client · /api · WS /ws]]
   end
 
-  subgraph API["⚙️  FastAPI Backend (:8077)"]
+  subgraph API["FastAPI Backend (:8077)"]
     direction LR
     RNET[network router]
     RTEL[telemetry router]
@@ -50,25 +50,25 @@ flowchart TB
     RSAFE[killswitch · llm router]
   end
 
-  subgraph AIL["🧠  Intelligence Layer — proposes only"]
+  subgraph AIL["Intelligence Layer — proposes only"]
     direction LR
     CTX[Context Manager]
     PLANNER[Central AI Planner]
     LLMC[Centralized LLM Client]
   end
 
-  subgraph SPINE["🛡️  Deterministic Safety Spine — authoritative"]
+  subgraph SPINE["Deterministic Safety Spine — authoritative"]
     direction TB
     EP[ExecutionPlan · Pydantic<br/>no cap field]
     GW{{Safety Gateway · evaluate<br/>fail-closed}}
     POL[Policy · target allowlist + caps]
     REG[(Execution Registry<br/>unique execution_id)]
     DIS[Dispatcher]
-    KS[[🔴 Kill Switch]]
-    AUD[(🗄️ SQLite Audit · masked)]
+    KS[[Kill Switch]]
+    AUD[(SQLite Audit · masked)]
   end
 
-  subgraph ADP["🔧  Bounded Adapters"]
+  subgraph ADP["Bounded Adapters"]
     direction LR
     HY[Hydra · auth test]
     LO[Locust · capped load]
@@ -77,7 +77,7 @@ flowchart TB
     PRB[Recon TCP probe]
   end
 
-  subgraph EXT["🌐  External — Authorized Lab"]
+  subgraph EXT["External — Authorized Lab"]
     direction LR
     TS{{Tailscale tailnet}}
     WIN[Windows target<br/>opensoc-windows]
@@ -118,6 +118,60 @@ flowchart TB
 - **Audit** (`app/safety/audit.py`) persists every decision/result to SQLite with secrets masked.
 
 > **Honest scope:** the gated pipeline above fully covers the **Hydra / Locust / NetExec** adapters and `/api/execution`, `/api/operations`. A few routes (`/api/telemetry/probe`, `/api/attacks/soc-activity`, `/api/assessment/run`, `/api/auth/live-validate`, `/api/transfer/send`) enforce **central authorization + kill-switch + audit** but are **not** yet unified into the Execution Registry pipeline. This is documented, not hidden.
+
+---
+
+## Request lifecycle — end to end
+
+A concrete walkthrough of what happens when an operator runs an operation.
+
+**A. Harmless reconnaissance (recon route):**
+
+1. Operator enters an authorized target IP in **Target Recon** and clicks probe.
+2. `api.ts` sends `POST /api/telemetry/probe {target}` to FastAPI.
+3. The route checks the **kill switch** first (`423` if engaged).
+4. `authorize_recon_target(target)` runs: valid IPv4? RFC1918 lab or current tailnet peer? public / loopback / shared-hotspot subnet → **refused, fail-closed**.
+5. If authorized, `run_probe()` performs a **bounded TCP-connect** of the approved port set (conservative timeout, total budget).
+6. The result (reachable? open ports? latency? or honest "unreachable") is returned, and a `RECON_PROBE` **audit** record is written.
+7. The dashboard renders **measured** values — nothing fabricated; an offline host shows "unreachable", not fake open ports.
+
+**B. Gated adapter operation (e.g. a Locust load test):**
+
+1. Operator (or the AI planner) produces a structured **`ExecutionPlan`** — module, target, requested params. The plan has **no field that can set or raise a cap**.
+2. `POST /api/integrations/locust/run` → `gateway.evaluate(plan)`.
+3. The **Safety Gateway** checks, in order and fail-closed: kill switch → module enabled → adapter available → **target allowlist** → operation allowlist → **clamp params down to caps** → concurrency.
+4. On approval it creates an **Execution Registry** record with a **unique `execution_id`** and transitions it `VALIDATING → APPROVED`.
+5. The **Dispatcher** — the *only* path from an approved record to an adapter — sets the process context, runs the adapter, and advances the record `RUNNING → COMPLETED / FAILED / TIMED_OUT / CANCELLED`.
+6. The adapter (headless subprocess, e.g. Locust) runs **bounded** (≤50 users / ≤120 s), and its real stats are parsed.
+7. Milestones and the masked result are **audited**; telemetry streams to the dashboard over the WebSocket.
+8. A rejected plan never gets an approved record, so it can **never** reach an adapter.
+
+## Execution states
+
+Every gated execution is tracked in the registry with a strict state machine (`app/safety/registry.py`):
+
+| State | Meaning |
+|---|---|
+| `REQUESTED` | plan received |
+| `VALIDATING` | passing through the gateway |
+| `APPROVED` | authorized, registered with an `execution_id` |
+| `RUNNING` | adapter executing (process attributed to this id) |
+| `OBSERVING` | post-run analysis |
+| `COMPLETED` / `FAILED` / `TIMED_OUT` | terminal outcomes |
+| `CANCEL_REQUESTED` → `CANCELLED` | operator/kill-switch cancellation |
+| `REJECTED` | gateway refused (no runnable record created) |
+
+Invalid transitions raise `InvalidTransition`; a terminal state is never overwritten (a cancellation can't be clobbered by a late "completed").
+
+## Design principles
+
+- **AI proposes, the backend disposes.** The LLM only emits a validated plan; authorization, caps, and execution are deterministic and AI-independent.
+- **Fail closed.** Any parse error, policy error, or ambiguity denies rather than allows.
+- **Single chokepoint.** Gated modules share one Safety Gateway, one Execution Registry, one Dispatcher, one kill switch — no module-specific authorization.
+- **Bounded capability.** Read-only operations where possible; hard caps a plan can only lower; no arbitrary shell, no flooding, no credential spraying.
+- **Honest telemetry.** Measured vs simulated vs unavailable are always distinguished; missing data is "unavailable", never invented.
+- **Secrets never travel.** Credentials live only in the gitignored `.env`, are masked in audit/API/exceptions, and are never placed in an LLM prompt.
+- **Connectivity ≠ authorization.** Being reachable on the tailnet does not authorize testing; a target must pass central authorization.
 
 ---
 
