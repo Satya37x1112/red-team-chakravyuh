@@ -105,7 +105,7 @@ Honesty rules followed: no invented percentages; untested integrations are not m
 ## D. Section-wise Development History (permanent)
 
 ### Section 1 — Repository Audit
-- **Objective:** evidence-based audit of the existing VAJRAPRAHAAR/CHAKRAVYUH repo.
+- **Objective:** evidence-based audit of the existing AI RED TEAM/CHAKRAVYUH repo.
 - **Work:** full backend/frontend read; status classifications; identified two disconnected execution paths, a per-module integer AI recommender, fail-closed Hydra/Locust, simulation-only RAT, kill switch not covering real tools.
 - **Files created:** `docs/CLAUDE_SECTION_1_AUDIT.md`. **Modified:** none.
 - **Tests executed:** read-only checks (git, grep, env presence). **Issues found:** kill-switch gap; no centralized planner; no safety gateway; no tests. **Decisions:** keep existing work; recommend Section 2 = deterministic spine. **Remaining:** everything in Sections 2–3+.
