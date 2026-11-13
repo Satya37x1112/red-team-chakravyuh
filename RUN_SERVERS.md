@@ -1,4 +1,4 @@
-# VAJRAPRAHAAR — Servers Start Karne Ki Guide (Local Dev)
+# AI RED TEAM — Servers Start Karne Ki Guide (Local Dev)
 
 Do server hain. Dono alag terminal mein chalte hain:
 
