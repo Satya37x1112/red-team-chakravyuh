@@ -1,4 +1,4 @@
-# VAJRAPRAHAAR on Kali — Complete Setup & Attack Guide
+# AI RED TEAM on Kali — Complete Setup & Attack Guide
 
 **Written for:** you, setting the project up on a **Kali Linux** attacker machine to
 run the three attacks (DDoS, Brute-force, Remote Access) against an **authorized
@@ -19,7 +19,7 @@ Kali is the recommended platform: `hydra`, `nmap`, `netexec`, `impacket`,
 ```
    KALI (your machine)                         TARGET (Windows VM, by IP)
  ┌──────────────────────┐                     ┌─────────────────────────┐
- │ VAJRAPRAHAAR console │   network / IP      │  open services:         │
+ │ AI RED TEAM console │   network / IP      │  open services:         │
  │  backend + frontend  │ ──────────────────▶ │   80/443 web  → DDoS    │
  │  AI decision engine  │                     │   3389 RDP    → Brute   │
  │  hydra/locust/nxc... │ ◀────────────────── │   445 SMB     → Brute   │
@@ -304,7 +304,7 @@ dashboard:
 
 ```text
 I'm running an AUTHORIZED academic red-team lab. My console project
-"VAJRAPRAHAAR" (FastAPI backend + React frontend) is cloned on this Kali machine
+"AI RED TEAM" (FastAPI backend + React frontend) is cloned on this Kali machine
 at ~/red-team-chakravyuh. I test ONLY an isolated lab Windows VM I'm authorized to
 assess, reachable by IP <TARGET_IP>. Everything runs on Kali; nothing is installed
 on the target.
