@@ -171,7 +171,7 @@ Expected response:
 {
   "status": "ok",
   "halted": false,
-  "service": "VAJRAPRAHAAR",
+  "service": "AI RED TEAM",
   "telemetry_source": "blackbox",
   "active_sessions": 0
 }
