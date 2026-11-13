@@ -1,91 +1,135 @@
-# AI RED TEAM — AI Red Team Cyber Range Console
+# AI RED TEAM
 
-Academic project. An AI agent reads **real telemetry** from an isolated Windows
-target VM, reasons over it with an LLM, and a dashboard shows three clearly
-separated layers: **REAL LAB TELEMETRY**, **AGENT DECISION**, **ANALYSIS**.
+**An AI-assisted Red-Team-vs-Blue-Team security lab platform that runs entirely from Kali Linux.**
 
+An operator drives a React dashboard; an LLM *proposes* bounded security assessments as structured plans; a deterministic Python backend *validates, authorizes, executes, and audits* them through a single fail-closed Safety Gateway. **The AI never invokes tools or makes authorization decisions** — it only suggests; the backend decides.
 
-## Layout
+> Built for an authorized, isolated research lab. It is a demonstration/lab tool, not an internet-facing service and not a production security product.
 
-    backend/    FastAPI service: telemetry collector, DB, WebSocket, AI engine, module stubs
-    frontend/   React + TypeScript + Tailwind dashboard
-    docker-compose.yml
+---
 
-    caldera-ai-project-main/  MITRE Caldera report analyzer (integrated)
-    locust-master/            Locust load-test framework (integrated, gated)
-    vervet-main/              Rust signed-emulation CLI (integrated, read-only)
-    PentestGPT-main/          LLM pentest agent (integrated, optional)
+## Why
 
-## Integrations
+An LLM that can run attack tools directly is dangerous: a hallucinated or manipulated plan could do real damage. AI RED TEAM addresses this by **separating three concerns**:
 
-Four external red-team tools are wired into the console behind one optional
-adapter interface (`backend/app/integrations/`), surfaced on the dashboard's
-**Integrations** page and under `GET /api/integrations`. Each is optional and
-degrades honestly — a missing toolchain, package, or key shows as "unavailable"
-with a reason instead of breaking anything:
+| Concern | Owner | Property |
+|---|---|---|
+| **Intelligence** | LLM planner (`app/agent/planner.py`) | proposes structured plans; no execution handle |
+| **Authorization** | Safety Gateway (`app/safety/gateway.py`) | deterministic, fail-closed, AI-independent |
+| **Execution** | Python adapters (`app/integrations/*`) | bounded, read-only or capped, audited |
 
-- **CALDERA analyzer** — turns a Caldera operation report into ATT&CK
-  technique/tactic coverage, pass/fail stats, and an AI SOC narrative (via the
-  same OpenRouter key the decision engine uses). Ships with sample reports.
-- **Locust** — the real DDoS load driver behind the DDoS module. Fail-closed:
-  inert until the operator sets `LOCUST_ENABLED=true` plus an authored locustfile
-  and an authorized target; users/rate/duration are hard-capped by config.
-- **vervet** — read-only `describe`/coverage from the signed-emulation CLI; the
-  state-changing `emulate` verb is never invoked from the console.
-- **PentestGPT** — detected if installed; engagements remain a deliberate,
-  scoped CLI action.
+The AI proposes, the backend validates and authorizes, the operator approves where required, and every action is recorded.
 
-Enable any of them by filling the relevant keys in `backend/.env` (see
-`backend/.env.example`). The core console runs fully without any of them.
+---
 
-See `backend/README.md` for setup. For Docker, copy `.env.example` to `.env` and set
-`POSTGRES_PASSWORD` before `docker compose up`.
+## Architecture
 
-## Run locally
+```mermaid
+flowchart TD
+  UI[React Dashboard] -->|HTTP /api, WS /ws| API[FastAPI routers]
+  API --> PL[AI Planner]
+  PL --> EP[ExecutionPlan - Pydantic]
+  EP --> GW[Safety Gateway: evaluate]
+  GW -->|reject, fail-closed| UI
+  GW --> POL[Policy: target allowlist + caps]
+  POL --> REG[Execution Registry: unique execution_id]
+  REG --> DIS[Dispatcher]
+  DIS --> AD[Adapter: Hydra / Locust / NetExec]
+  AD --> TEL[Telemetry + Analysis]
+  TEL --> AUD[(SQLite Audit)]
+  AUD --> UI
+  KS{{Kill Switch}} -. blocks new work .-> GW
+  KS -. blocks .-> API
+```
 
-Two terminals. Backend first (see `backend/README.md` for detail):
+**Execution lifecycle (gated path):** `Dashboard → FastAPI → AI Planner → ExecutionPlan → Safety Gateway → Execution Registry → Dispatcher → Adapter → Telemetry → Audit → Dashboard.`
 
-    cd backend
-    python -m venv .venv && . .venv/bin/activate
-    pip install -r requirements.txt
-    cp .env.example .env     # put OpenRouter key(s) here; file is gitignored
-    DATABASE_URL="sqlite:///./dev.db" TELEMETRY_SOURCE=local \
-      uvicorn app.main:app --reload --port 8077
+- **Authorization** is enforced in `gateway.evaluate()` (and `authorize_recon_target()` for recon routes) — never in the frontend.
+- **Kill switch** (`app/safety/killswitch.py`) is checked at the top of the gateway and on every network-touching route; reset requires `SAFETY_ADMIN_TOKEN` (no unauthenticated reset).
+- **Audit** (`app/safety/audit.py`) persists every decision/result to SQLite with secrets masked.
 
-Then the dashboard (Vite dev server proxies `/api` and `/ws` to :8077):
+> **Honest scope:** the gated pipeline above fully covers the **Hydra / Locust / NetExec** adapters and `/api/execution`, `/api/operations`. A few routes (`/api/telemetry/probe`, `/api/attacks/soc-activity`, `/api/assessment/run`, `/api/auth/live-validate`, `/api/transfer/send`) enforce **central authorization + kill-switch + audit** but are **not** yet unified into the Execution Registry pipeline. This is documented, not hidden.
 
-    cd frontend
-    npm install
-    npm run dev        # http://localhost:5173
+---
 
-Kill switch: the header button or **Win+Alt+K** (Ctrl+Alt+K fallback) halts the
-range; new sessions are refused until you re-arm. Theme toggle is in the header.
+## Modules
 
-## Deployment
+| Module | Tool | What it does | Status |
+|---|---|---|---|
+| **Network Discovery** | Tailscale + TCP | enumerate tailnet peers / bounded lab-subnet discovery; explicit target selection; **dynamic hotspot protection** | live-verified |
+| **Reconnaissance** | agentless TCP-connect | bounded port/banner probe of an authorized target | live-verified |
+| **Hydra** | `hydra` v9.7 | bounded authentication-resilience testing (attempt caps, lockout-aware) | mock-verified |
+| **Locust** | `locust` 2.47 | capped HTTP load testing (≤50 users / ≤120 s) + a labeled **simulation** mode (no traffic) | mock + simulation |
+| **NetExec** | `nxc` | 5 fixed **read-only** remote ops (connectivity_check / whoami / hostname / os_info / system_info) | implemented (not live-verified) |
+| **Offline Hash Audit** | rockyou | dictionary audit of an authorized hash (masked output) | live-verified (local) |
+| **File Transfer** | HTTP + SHA-256 | operator-controlled authenticated transfer with integrity check | implemented (receiver-dependent) |
+| **Telemetry / UBA** | psutil / probe | host metrics, behavior scoring; measured vs simulated vs unavailable are labeled | mock-verified |
 
-This is a lab console for an isolated, host-only network — not an
-internet-facing service. Keep it on the lab network, behind auth if exposed.
+**Safety guarantees:** fail-closed target authorization (RFC1918 lab or tailnet peer only; public / loopback / shared-hotspot subnet rejected — the hotspot is detected *dynamically* from the live default route); per-module caps that a plan can only lower; a global kill switch; and an append-only audit trail. No flooding/amplification, no arbitrary shell, no credential spraying.
 
-1. **Config** — copy `.env.example` to `.env` on the host and fill
-   `OPENROUTER_API_KEY` (or the per-module `OPENROUTER_API_KEY_*`), `DATABASE_URL`,
-   and `TELEMETRY_SOURCE`. Never commit `.env`.
-2. **Containers (recommended)** — in the repo root:
+---
 
-       cp .env.example .env               # set POSTGRES_PASSWORD
-       cp backend/.env.example backend/.env   # set OPENROUTER_API_KEY*, TELEMETRY_SOURCE
-       docker compose up -d --build
+## Tech stack
 
-   Compose builds three services: Postgres, the backend, and an nginx container
-   that serves the built dashboard and proxies `/api` + `/ws` to the backend.
-   Open the dashboard at **http://localhost:8080**. The backend is only reachable
-   inside the compose network (expose a port in `docker-compose.yml` if you need
-   it directly).
-3. **Frontend build (bare-metal)** — `cd frontend && npm ci && npm run build`
-   produces static assets in `frontend/dist/`; serve them with any static host
-   (nginx/Caddy — see `frontend/nginx.conf`) and reverse-proxy `/api` and `/ws`
-   to the backend.
-4. **Backend (bare-metal)** — run `uvicorn app.main:app --host 0.0.0.0 --port 8077`
-   behind a process manager (systemd / a container restart policy). Use Postgres,
-   not SQLite, for anything beyond a single-user demo.
-5. **Telemetry** — set `TELEMETRY_SOURCE=local` on the Windows target itself, or
-   `winrm` with `WINRM_*` creds to poll it remotely.
+Kali Linux · **FastAPI** + **Pydantic** (backend) · **React + TypeScript + Vite** (frontend) · **Tailscale** (lab connectivity) · **SQLite** (audit) · **OpenRouter** (LLM, optional **OmniRoute** gateway) · Hydra / Locust / NetExec.
+
+## Repository layout
+
+```
+backend/app/
+  agent/        AI planner, analysis, feedback, context
+  safety/       gateway · policy · registry · dispatcher · killswitch · audit · plan_schema
+  integrations/ hydra · locust · locust_sim · remote_access(netexec) · _llm
+  services/     discovery · assessment · transfer · hash_audit · wordlist · availability
+  telemetry/    collector (local/blackbox) · service
+  api/          routers (network, telemetry, integrations, operations, execution, auth, transfer, llm, routes)
+frontend/src/   pages (Dashboard, NetworkDiscovery, TargetRecon, AIPlanner, Integrations, Settings), components, api.ts
+scripts/        start · stop · restart · health · smoke
+docs/           architecture, module guides, demo runbook, final_demo/
+```
+
+---
+
+## Setup & run (Kali)
+
+The quickest path uses the helper scripts (see `docs/SERVER_RUNBOOK.md`):
+
+```bash
+./scripts/start.sh      # backend :8077 + frontend :5173
+./scripts/health.sh     # verify both + backend health JSON
+./scripts/restart.sh    # after editing backend/.env
+```
+
+Manual backend start (the venv interpreter is 3.14 but packages are under 3.13, so run with 3.13):
+
+```bash
+cd backend
+PYTHONPATH="$PWD/.venv/lib/python3.13/site-packages" \
+  /usr/bin/python3.13 -m uvicorn app.main:app --host 127.0.0.1 --port 8077
+```
+
+Configuration lives in the **gitignored** `backend/.env` (template: `backend/.env.example`; reference: `docs/ENVIRONMENT_VARIABLES.md`). Never commit secrets.
+
+## Testing
+
+```bash
+make test        # backend: 252 passing (pytest, Python 3.13 invocation)
+make typecheck   # frontend TypeScript
+make build       # frontend production build
+```
+
+All tests are mocked/offline — no external attacks run in the suite.
+
+## API
+
+Full route reference: **`docs/api/ENDPOINTS.md`**. Key routes: `GET /api/health`, `POST /api/llm/test`, `POST /api/network/discovery/start`, `POST /api/network/targets/select`, `POST /api/telemetry/probe`, `POST /api/killswitch[/reset]`.
+
+## Security notes
+
+- Secrets only in gitignored `backend/.env` (mode 600); masked in audit/API/exceptions; never sent to the LLM.
+- Tailscale connectivity is **not** authorization — a target must pass `authorize_recon_target()` / the gateway allowlist.
+- Kill-switch reset requires `SAFETY_ADMIN_TOKEN`.
+
+## Status & limitations
+
+**READY WITH LIMITATIONS.** Live-verified: discovery, target authorization, recon, kill-switch, audit, local telemetry. Known limitations: some routes not yet Registry-unified; live NetExec/file-transfer require the Windows target online + an operator-started receiver; Windows *internal* telemetry is unavailable to an external probe (reported as such, never fabricated). See `docs/final_demo/LIMITATIONS_AND_FUTURE_SCOPE.md`.
